@@ -179,9 +179,6 @@ console.log("event card refs", {
 });
 
 const filtersToggleBtn = document.getElementById("filters-toggle");
-const filtersCloseBtn = document.getElementById("filters-close");
-const filtersPanel = document.getElementById("filters-panel");
-const filtersOverlay = document.getElementById("filters-overlay");
 const resetFiltersBtn = document.getElementById("reset-filters");
 const activeFilterCount = document.getElementById("active-filter-count");
 const filterSummary = document.getElementById("filter-summary");
@@ -337,28 +334,6 @@ function formatFilterLabel(value){
 
 }
 
-function filterSelectionSummary(key){
-
-  const selected=Array.from(filtersState[key]);
-
-  if(selected.length===0){
-    return "Search and select...";
-  }
-
-  const formatted=selected.map(formatFilterLabel);
-
-  if(formatted.length===1){
-    return formatted[0];
-  }
-
-  if(formatted.length===2){
-    return formatted[0]+", "+formatted[1];
-  }
-
-  return formatted[0]+", "+formatted[1]+" +"+(formatted.length-2);
-
-}
-
 function updateFilterFieldUi(key){
 
   const ui=filterUiMap[key];
@@ -381,9 +356,7 @@ function updateFilterFieldUi(key){
 
   }
 
-  if(input && !input.value){
-    input.placeholder=filterSelectionSummary(key);
-  }
+  count?.closest(".filter-dd-btn")?.classList.toggle("is-active", selectedCount>0);
 
   if(clear){
     if(selectedCount>0){
@@ -751,10 +724,13 @@ function buildFilterList(containerId, values, filterKey, searchInputId, showColo
   renderList();
 }
 
-function openFiltersPanel(open) {
-  if (!filtersPanel || !filtersOverlay) return;
-  filtersPanel.classList.toggle("open", open);
-  filtersOverlay.classList.toggle("open", open);
+// The filter bar under the toolbar, opened from the Filters button
+let filtersBarOpen = false;
+
+function setFiltersBarOpen(open) {
+  filtersBarOpen = open;
+  if (!open) closeToolbarPopovers();
+  updateObjectDetailToolbar();
 }
 
 function updateToolbarResultsSummary() {
@@ -953,8 +929,11 @@ function updateObjectDetailToolbar() {
 
   if (toolbarTitleBlock) toolbarTitleBlock.hidden = inDetailMode;
   if (objectDetailCrumb) objectDetailCrumb.hidden = !inDetailMode;
-  if (filtersToggleBtn) filtersToggleBtn.hidden = inDetailMode;
-  if (toolbarFiltersRow) toolbarFiltersRow.hidden = inDetailMode || activeFilterTotal() === 0;
+  if (filtersToggleBtn) {
+    filtersToggleBtn.hidden = inDetailMode;
+    filtersToggleBtn.setAttribute("aria-expanded", String(filtersBarOpen));
+  }
+  if (toolbarFiltersRow) toolbarFiltersRow.hidden = inDetailMode || !filtersBarOpen;
 
   if (!inDetailMode) return;
 
@@ -1388,9 +1367,6 @@ function removeFilterValue(key, value) {
 function setFilterMode(mode) {
   filtersState.mode = mode;
 
-  const radio = document.querySelector(`input[name="filter-mode"][value="${mode}"]`);
-  if (radio) radio.checked = true;
-
   updateFilterModeButtons();
   render();
 }
@@ -1555,18 +1531,30 @@ function setupFilterUI() {
   });
 
   // MODE SWITCH
-  document.querySelectorAll('input[name="filter-mode"]').forEach((input)=>{
-    input.onchange=()=>setFilterMode(input.value);
-  });
-
   document.querySelectorAll(".toolbar-segmented [data-mode]").forEach((button)=>{
     button.onclick=()=>setFilterMode(button.dataset.mode);
   });
 
   // PANEL BUTTONS
-  if(filtersToggleBtn) filtersToggleBtn.onclick=()=>openFiltersPanel(true);
-  if(filtersCloseBtn) filtersCloseBtn.onclick=()=>openFiltersPanel(false);
-  if(filtersOverlay) filtersOverlay.onclick=()=>openFiltersPanel(false);
+  if(filtersToggleBtn) filtersToggleBtn.onclick=()=>setFiltersBarOpen(!filtersBarOpen);
+
+  // FILTER DROPDOWNS: one per group, the search field takes focus on open
+  document.querySelectorAll(".filter-dd").forEach(dropdown => {
+    const key = dropdown.dataset.filterKey;
+    const button = dropdown.querySelector(".filter-dd-btn");
+    const popover = dropdown.querySelector(".filter-dd-popover");
+
+    bindToolbarPopover(button, popover);
+
+    if (button && !button._focusBound) {
+      button.addEventListener("click", () => {
+        if (popover.hidden) return;
+        openFilterPopup(key);
+        document.getElementById(filterPopupMap[key].inputId)?.focus();
+      });
+      button._focusBound = true;
+    }
+  });
   if (resetViewBtn) resetViewBtn.onclick = () => fitView();
   if (zoomInBtn) zoomInBtn.onclick = () => zoomByStep(1);
   if (zoomOutBtn) zoomOutBtn.onclick = () => zoomByStep(-1);
@@ -1620,9 +1608,6 @@ function setupFilterUI() {
       });
 
       filtersState.mode="focus";
-
-      const focusInput = document.querySelector('input[name="filter-mode"][value="focus"]');
-      if (focusInput) focusInput.checked = true;
 
       updateFilterSummary();
       updateAllFilterFieldUi();

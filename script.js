@@ -220,19 +220,28 @@ const OVERVIEW_DOUBLE_DIAMOND_MIN_LINE_BODY_LENGTH = 10;
 const OVERVIEW_FIXED_EVENT_HEIGHT = 10;
 const OVERVIEW_FIXED_EVENT_SCALE_Y = OVERVIEW_FIXED_EVENT_HEIGHT / eventHeight;
 
+// Three alpha levels for every event mark, plus one for filtered-out events.
+// Filtered-out events fade as a whole group, so the levels are never multiplied.
+const ALPHA = {
+  solid: 1,     // exact dates, overview lines
+  body: 0.55,   // known periods
+  edge: 0.25,   // uncertain start/end of a period, open ends
+  filteredOut: 0.3
+};
+
 const OPACITY = {
-  structureStart: 0.2,
-  structureMid: 0.4,
-  structureEnd: 0.2,
+  structureStart: ALPHA.edge,
+  structureMid: ALPHA.body,
+  structureEnd: ALPHA.edge,
 
-  overviewBar: 0.88,
-  overviewSquare: 0.3,
-  overviewDiamond: 0.4,
-  overviewLine: 0.88,
+  overviewBar: ALPHA.solid,
+  overviewSquare: ALPHA.body,
+  overviewDiamond: ALPHA.solid,
+  overviewLine: ALPHA.solid,
 
-  preciseDiamond: 0.4,
+  preciseDiamond: ALPHA.solid,
 
-  filteredOut: 0.5
+  filteredOut: ALPHA.filteredOut
 };
 
 const SELECTION_DARK = "rgba(15,23,42,0.65)";
@@ -265,12 +274,12 @@ const specialYear = 1897;
 const objectMetaMinBottomPadding = 10;
 const exactDateWidthPx = 5;
 const exactDateExtraHeightPx = 6;
-const exactDateFillOpacity = 0.3;
+const exactDateFillOpacity = ALPHA.edge;
 const exactDateStrokeWidth = 1;
-const regularMidOpacity = 0.8;
+const regularMidOpacity = ALPHA.body;
 const filteredOutOpacity = OPACITY.filteredOut;
-const singleSectionOpacityFar = 0.8;
-const singleSectionOpacityNear = 0.3;
+const singleSectionOpacityFar = ALPHA.body;
+const singleSectionOpacityNear = ALPHA.body;
 const singleSectionOpacityZoomFar = 0.55;
 const singleSectionOpacityZoomNear = 1.2;
 const objectGapExtra = 14;
@@ -2292,7 +2301,7 @@ function getOverviewDisplayedSpan(event) {
 }
 
 function drawOverviewGlyphEvent(group, event, rowCenterY, currentEventHeight, matched, isSelected) {
-  const glyphFillOpacity = matched ? OPACITY.overviewLine : filteredOutOpacity;
+  const glyphFillOpacity = OPACITY.overviewLine;
 
   const lineThickness = Math.max(2, Math.min(3, currentEventHeight * 0.16));
   const squareSize = OVERVIEW_SQUARE_SIZE;
@@ -2498,7 +2507,7 @@ function drawOverviewGlyphEvent(group, event, rowCenterY, currentEventHeight, ma
       "stroke",
       isDoubleDiamondDuration
         ? event.categoryColor
-        : rgba(event.categoryColor, 0.3)
+        : rgba(event.categoryColor, ALPHA.body)
     )
     .attr("stroke-width", selected ? Math.max(3, lineThickness + 1) : Math.max(2, lineThickness))
     .attr("stroke-linecap", "round")
@@ -2583,7 +2592,7 @@ function initializeFromData() {
         const sections = event.sections
           .filter((section) => section.start !== null && section.end !== null)
           .map((section) => {
-            let resolvedOpacity = section.opacity ?? (section.kind === "mid" ? regularMidOpacity : 0.3);
+            let resolvedOpacity = section.opacity ?? (section.kind === "mid" ? regularMidOpacity : ALPHA.edge);
             if (section.kind === "single") resolvedOpacity = singleSectionOpacityForZoom();
 
             return {
@@ -2857,7 +2866,7 @@ function render() {
         .attr("x2", scaledX(event.eventStart))
         .attr("y1", rowCenterY)
         .attr("y2", rowCenterY)
-        .attr("stroke", rgba(event.categoryColor, matched ? 0.3 : filteredOutOpacity))
+        .attr("stroke", rgba(event.categoryColor, ALPHA.edge))
         .attr("stroke-width", 3)
         .attr("stroke-dasharray", "0.1 10")
         .attr("stroke-linecap", "round")
@@ -2872,7 +2881,7 @@ function render() {
         .attr("x2", scaledX(event.eventEnd) + openRightOffset)
         .attr("y1", rowCenterY)
         .attr("y2", rowCenterY)
-        .attr("stroke", rgba(event.categoryColor, matched ? 0.3 : filteredOutOpacity))
+        .attr("stroke", rgba(event.categoryColor, ALPHA.edge))
         .attr("stroke-width", 3)
         .attr("stroke-dasharray", "0.1 10")
         .attr("stroke-linecap", "round")
@@ -2929,10 +2938,9 @@ function render() {
         let rectOpacity = section.opacity;
 
         if (structureDetailDoubleDiamondEvent && matched) {
-          rectOpacity = 0.8;
+          rectOpacity = ALPHA.body;
         }
 
-        if (!matched) rectOpacity = filteredOutOpacity;
 
         const rect = group.append("rect")
           .attr("class", "event-rect event-interactive")
@@ -2996,7 +3004,7 @@ function render() {
       event,
       diamond.symbol,
       OVERVIEW_DIAMOND_SIZE,
-      matched ? 1 : filteredOutOpacity
+      1
     );
 
     const diamondHit = group.append("rect")

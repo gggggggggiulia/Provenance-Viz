@@ -195,6 +195,10 @@ const mainToolbar = document.getElementById("main-toolbar");
 const resetViewBtn = document.getElementById("reset-view");
 const navHelpTooltip = document.getElementById("nav-help-tooltip");
 const objectDetailBackBtn = document.getElementById("object-detail-back");
+const objectSearchForm = document.getElementById("object-search-form");
+const objectSearchInput = document.getElementById("object-search-input");
+const objectSearchOptions = document.getElementById("object-search-options");
+const objectSearchFeedback = document.getElementById("object-search-feedback");
 const objectDetailStatus = document.getElementById("object-detail-status");
 
 const stickyWidth = 240;
@@ -782,7 +786,7 @@ function updateTimelineDateModeUI() {
 
   timelineDateEndInput.classList.toggle("hidden", !isRange);
   timelineDateRangeToggleBtn.setAttribute("aria-expanded", String(isRange));
-  timelineDateRangeToggleBtn.textContent = isRange ? "←" : "→";
+  timelineDateRangeToggleBtn.textContent = isRange ? "− End" : "+ End";
   timelineDateRangeToggleBtn.title = isRange ? "Use single date mode" : "Add end date";
 }
 
@@ -876,6 +880,8 @@ function updateObjectDetailToolbar() {
   if (!objectDetailBackBtn || !objectDetailStatus) return;
 
   const inDetailMode = state.viewMode === "objectDetail" && state.detailObjectId !== null;
+
+  document.getElementById("main-toolbar")?.classList.toggle("is-detail", inDetailMode);
 
   if (inDetailMode) {
     objectDetailBackBtn.style.display = "";
@@ -1168,6 +1174,49 @@ function enterObjectDetailMode(objectId) {
   render();
 }
 
+function populateObjectSearchOptions() {
+  if (!objectSearchOptions) return;
+
+  const objectIds = [...new Set(allEvents.map(event => event.objectId).filter(Boolean))]
+    .sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+
+  objectSearchOptions.innerHTML = "";
+  objectIds.forEach(objectId => {
+    const option = document.createElement("option");
+    option.value = objectId;
+    objectSearchOptions.appendChild(option);
+  });
+}
+
+function findObjectIdByQuery(query) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return { objectId: null, matchCount: 0 };
+
+  const objectIds = [...new Set(allEvents.map(event => event.objectId).filter(Boolean))];
+  const exact = objectIds.find(objectId => String(objectId).toLowerCase() === normalized);
+  if (exact) return { objectId: exact, matchCount: 1 };
+
+  const partial = objectIds.filter(objectId => String(objectId).toLowerCase().includes(normalized));
+  return { objectId: partial.length === 1 ? partial[0] : null, matchCount: partial.length };
+}
+
+function applyObjectSearch() {
+  if (!objectSearchInput) return;
+
+  const query = objectSearchInput.value;
+  const { objectId, matchCount } = findObjectIdByQuery(query);
+
+  if (objectSearchFeedback) {
+    if (!query.trim() || objectId) objectSearchFeedback.textContent = "";
+    else if (matchCount > 1) objectSearchFeedback.textContent = `${matchCount} matches, pick one`;
+    else objectSearchFeedback.textContent = "No matching object";
+  }
+
+  if (objectId) {
+    enterObjectDetailMode(objectId);
+  }
+}
+
 function activeFilterTotal() {
   return (
     filtersState.category.size +
@@ -1376,6 +1425,9 @@ function setupFilterUI() {
     state.detailObjectId = null;
     state.comparisonSnapshot = null;
 
+    if (objectSearchInput) objectSearchInput.value = "";
+    if (objectSearchFeedback) objectSearchFeedback.textContent = "";
+
       render();
     };
   }
@@ -1409,6 +1461,22 @@ function setupFilterUI() {
     };
 
   }
+
+  // OBJECT SEARCH
+  if (objectSearchForm && !objectSearchForm._bound) {
+    objectSearchForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      applyObjectSearch();
+    });
+
+    objectSearchInput?.addEventListener("input", () => {
+      if (objectSearchFeedback) objectSearchFeedback.textContent = "";
+    });
+
+    objectSearchForm._bound = true;
+  }
+
+  populateObjectSearchOptions();
 
   // NAV TOOLTIP
   if(navHelpBtn){

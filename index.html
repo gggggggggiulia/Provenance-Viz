@@ -40,7 +40,7 @@
               Reset view
             </button>
 
-            <button id="nav-help-btn" class="icon-btn help-btn" type="button" aria-label="Navigation help">i</button>
+            <button id="nav-help-btn" class="icon-btn help-btn" type="button" aria-label="Navigation help">?</button>
           </div>
 
           <div class="toolbar-control-group toolbar-control-group-view toolbar-control-group-time">
@@ -61,7 +61,7 @@
                 aria-label="Switch to date interval mode"
                 title="Add end date"
               >
-                →
+                + End
               </button>
 
               <input
@@ -82,16 +82,22 @@
             </div>
           </div>
 
-          <div class="toolbar-control-group toolbar-control-group-view toolbar-control-group-time">
-            <div class="toolbar-date-nav">
+          <div class="toolbar-control-group toolbar-control-group-view toolbar-control-group-search">
+            <form id="object-search-form" class="toolbar-date-nav" autocomplete="off">
               <input
-                id="timeline-date-start"
-                class="toolbar-date-input"
-                type="text"
-                placeholder="Search Object ID..."
-                aria-label="Go to date or interval start date"
+                id="object-search-input"
+                class="toolbar-date-input toolbar-search-input"
+                type="search"
+                list="object-search-options"
+                placeholder="Search object ID…"
+                aria-label="Search object ID"
               />
-            </div>
+              <datalist id="object-search-options"></datalist>
+              <button id="object-search-apply" class="toolbar-btn secondary" type="submit">
+                Open
+              </button>
+            </form>
+            <span id="object-search-feedback" class="toolbar-search-feedback" aria-live="polite"></span>
           </div>
 
         </div>

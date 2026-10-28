@@ -257,8 +257,8 @@ const SELECTION_BOX_PAD_Y = 6;
 
 const unmatchedCollapsedEventHeight = 5;
 const labelGap = 12;
-const labelGapEndDiamond = 18;
-const labelGapOpenEnd = 40;
+// Length of the dotted tail drawn for an open start or end
+const OPEN_END_LINE_LENGTH = 40;
 const OBJECT_VERTICAL_GAP = 20;
 const minScale = 0.35;
 const minEventHeight = 10;
@@ -2141,6 +2141,35 @@ function eventBarWidth(event) {
   return scaledX(event.eventEnd) - scaledX(event.eventStart);
 }
 
+// Horizontal extent of what is actually drawn for an event (diamonds and
+// widened short bars included), without the open-end dotted tails
+function eventVisualSpan(event, drawAsGlyph) {
+  if (drawAsGlyph) return getOverviewDisplayedSpan(event);
+
+  let x0 = scaledX(event.eventStart);
+  let x1 = scaledX(event.eventEnd);
+
+  if (eventBarWidth(event) < MIN_BAR_WIDTH_PX) {
+    const centerX = (x0 + x1) / 2;
+    x0 = Math.min(x0, centerX - MIN_BAR_WIDTH_PX / 2);
+    x1 = Math.max(x1, centerX + MIN_BAR_WIDTH_PX / 2);
+  }
+
+  const sections = event.sections || [];
+  const halfDiamond = OVERVIEW_DIAMOND_SIZE / 2;
+  const first = sections[0];
+  const last = sections[sections.length - 1];
+
+  if (first?.isExactDate === true) {
+    x0 = Math.min(x0, scaledX((first.start + first.end) / 2) - halfDiamond);
+  }
+  if (last?.isExactDate === true) {
+    x1 = Math.max(x1, scaledX((last.start + last.end) / 2) + halfDiamond);
+  }
+
+  return { x0, x1 };
+}
+
 function isOverviewZoomLevel() {
   return getSemanticZoomLevel() === 1;
 }
@@ -2855,15 +2884,14 @@ function render() {
     const rowCenterY = rowBaseTop + rowHeight / 2;
     const normalRectY = rowCenterY - currentEventHeight / 2;
 
-    if (isSelected) {
-      let displayedX0 = scaledX(event.eventStart);
-      let displayedX1 = scaledX(event.eventEnd);
+    const visualSpan = eventVisualSpan(event, drawAsGlyph);
+    const openLeft = isOpenLeftEDTF(event.edtf);
+    const openRight = isOpenRightEDTF(event.edtf);
 
-      if (drawAsGlyph) {
-        const overviewSpan = getOverviewDisplayedSpan(event);
-        displayedX0 = overviewSpan.x0;
-        displayedX1 = overviewSpan.x1;
-      }
+    if (isSelected) {
+      // The box also wraps the dotted tails of open starts and ends
+      const displayedX0 = visualSpan.x0 - (openLeft ? OPEN_END_LINE_LENGTH : 0);
+      const displayedX1 = visualSpan.x1 + (openRight ? OPEN_END_LINE_LENGTH : 0);
 
       const boxX = displayedX0 - SELECTION_BOX_PAD_X;
       const boxWidth = Math.max(8, displayedX1 - displayedX0) + SELECTION_BOX_PAD_X * 2;
@@ -2884,12 +2912,10 @@ function render() {
         .attr("pointer-events", "none");
     }
 
-    if (isOpenLeftEDTF(event.edtf)) {
-      const openLineOffset = 40;
-
+    if (openLeft) {
       group.append("line")
-        .attr("x1", scaledX(event.eventStart) - openLineOffset)
-        .attr("x2", scaledX(event.eventStart))
+        .attr("x1", visualSpan.x0 - OPEN_END_LINE_LENGTH)
+        .attr("x2", visualSpan.x0)
         .attr("y1", rowCenterY)
         .attr("y2", rowCenterY)
         .attr("stroke", rgba(event.categoryColor, ALPHA.edge))
@@ -2899,12 +2925,10 @@ function render() {
         .attr("pointer-events", "none");
     }
 
-    if (isOpenRightEDTF(event.edtf)) {
-      const openRightOffset = 40;
-
+    if (openRight) {
       group.append("line")
-        .attr("x1", scaledX(event.eventEnd))
-        .attr("x2", scaledX(event.eventEnd) + openRightOffset)
+        .attr("x1", visualSpan.x1)
+        .attr("x2", visualSpan.x1 + OPEN_END_LINE_LENGTH)
         .attr("y1", rowCenterY)
         .attr("y2", rowCenterY)
         .attr("stroke", rgba(event.categoryColor, ALPHA.edge))
@@ -3063,27 +3087,9 @@ function render() {
 
   if (semanticLevel >= 2 && matched) {
 
-    // Labels always sit to the left of the event
-    const eventStartsWithDiamond =
-      event.sections &&
-      event.sections.length > 0 &&
-      event.sections[0].isExactDate === true;
-
-    let effectiveLabelGap = labelGap;
-
-    if (isOpenLeftEDTF(event.edtf)) {
-      effectiveLabelGap = labelGapOpenEnd;
-    } else if (eventStartsWithDiamond) {
-      effectiveLabelGap = labelGapEndDiamond;
-    }
-
-    const eventStartX = drawAsGlyph
-      ? getOverviewDisplayedSpan(event).x0
-      : scaledX(event.eventStart);
-
-    const labelAnchorX = drawAsGlyph && !isOpenLeftEDTF(event.edtf)
-      ? eventStartX - labelGap
-      : eventStartX - effectiveLabelGap;
+    // Labels always sit to the left of the event, past any dotted open start
+    const labelAnchorX =
+      visualSpan.x0 - (openLeft ? OPEN_END_LINE_LENGTH : 0) - labelGap;
 
     labelsLayer.append("text")
       .attr("class", "event-label")

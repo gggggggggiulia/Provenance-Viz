@@ -3001,49 +3001,34 @@ function render() {
 
   if (semanticLevel >= 2 && matched) {
 
-    const labelAnchorBaseYear =
-      isOpenRightEDTF(event.edtf)
-        ? Math.min(event.eventEnd, maxYear - 1)
-        : event.eventEnd;
-
-    const eventEndsWithDiamond =
+    // Labels always sit to the left of the event
+    const eventStartsWithDiamond =
       event.sections &&
       event.sections.length > 0 &&
-      event.sections[event.sections.length - 1].isExactDate === true;
+      event.sections[0].isExactDate === true;
 
     let effectiveLabelGap = labelGap;
 
-    if (eventEndsWithDiamond) {
-      effectiveLabelGap = labelGapEndDiamond;
-    }
-
-    if (isOpenRightEDTF(event.edtf)) {
+    if (isOpenLeftEDTF(event.edtf)) {
       effectiveLabelGap = labelGapOpenEnd;
-    } else if (eventEndsWithDiamond) {
+    } else if (eventStartsWithDiamond) {
       effectiveLabelGap = labelGapEndDiamond;
     }
-    const eventSpan = drawAsGlyph
-      ? getOverviewDisplayedSpan(event)
-      : { x0: scaledX(event.eventStart), x1: scaledX(labelAnchorBaseYear) };
 
-    const labelAnchorX = drawAsGlyph
-      ? eventSpan.x1 + labelGap
-      : eventSpan.x1 + effectiveLabelGap;
+    const eventStartX = drawAsGlyph
+      ? getOverviewDisplayedSpan(event).x0
+      : scaledX(event.eventStart);
 
-    // Labels go right of the event; if they would run past the edge, left of it; else skip
-    const estimatedLabelWidth = String(event.label || "").length * 7.5;
-    const fitsRight = labelAnchorX + estimatedLabelWidth <= width - 4;
-    const leftAnchorX = eventSpan.x0 - labelGap;
-    const fitsLeft = leftAnchorX - estimatedLabelWidth >= stickyWidth + 4;
+    const labelAnchorX = drawAsGlyph && !isOpenLeftEDTF(event.edtf)
+      ? eventStartX - labelGap
+      : eventStartX - effectiveLabelGap;
 
-    if (fitsRight || fitsLeft) {
-      labelsLayer.append("text")
-        .attr("class", "event-label")
-        .attr("x", fitsRight ? labelAnchorX : leftAnchorX)
-        .attr("y", rowCenterY)
-        .attr("text-anchor", fitsRight ? "start" : "end")
-        .text(event.label);
-    }
+    labelsLayer.append("text")
+      .attr("class", "event-label")
+      .attr("x", labelAnchorX)
+      .attr("y", rowCenterY)
+      .attr("text-anchor", "end")
+      .text(event.label);
 
   }
   

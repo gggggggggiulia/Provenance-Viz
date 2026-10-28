@@ -2738,23 +2738,23 @@ function render() {
             .attr("pointer-events", "none");
 
         }
-      
-    }
 
-    if (semanticLevel === 3 && sectionIndex > 0 && !isExactDate) {
+        if (semanticLevel === 3 && sectionIndex > 0) {
 
-      const separatorX = x0;
+          const separatorX = x0;
 
-      group.append("line")
-        .attr("x1", separatorX)
-        .attr("x2", separatorX)
-        .attr("y1", rectY + 1)
-        .attr("y2", rectY + rectHeight - 1)
-        .attr("stroke", "rgba(255,255,255,0.55)")
-        .attr("stroke-width", 1)
-        .attr("pointer-events", "none");
+          group.append("line")
+            .attr("x1", separatorX)
+            .attr("x2", separatorX)
+            .attr("y1", rectY + 1)
+            .attr("y2", rectY + rectHeight - 1)
+            .attr("stroke", "rgba(255,255,255,0.55)")
+            .attr("stroke-width", 1)
+            .attr("pointer-events", "none");
 
-    }
+        }
+
+      }
 
   });
 

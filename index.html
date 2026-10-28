@@ -84,20 +84,24 @@
 
           <div class="toolbar-control-group toolbar-control-group-view toolbar-control-group-search">
             <form id="object-search-form" class="toolbar-date-nav" autocomplete="off">
-              <input
-                id="object-search-input"
-                class="toolbar-date-input toolbar-search-input"
-                type="search"
-                list="object-search-options"
-                placeholder="Search object ID…"
-                aria-label="Search object ID"
-              />
-              <datalist id="object-search-options"></datalist>
+              <div id="object-search-combobox" class="object-search-combobox">
+                <input
+                  id="object-search-input"
+                  class="toolbar-date-input toolbar-search-input"
+                  type="text"
+                  role="combobox"
+                  aria-expanded="false"
+                  aria-controls="object-search-options"
+                  aria-autocomplete="list"
+                  placeholder="Search object ID…"
+                  aria-label="Search object ID"
+                />
+                <div id="object-search-options" class="object-search-popup" role="listbox"></div>
+              </div>
               <button id="object-search-apply" class="toolbar-btn secondary" type="submit">
                 Open
               </button>
             </form>
-            <span id="object-search-feedback" class="toolbar-search-feedback" aria-live="polite"></span>
           </div>
 
         </div>

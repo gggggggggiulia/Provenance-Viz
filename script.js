@@ -197,8 +197,8 @@ const navHelpTooltip = document.getElementById("nav-help-tooltip");
 const objectDetailBackBtn = document.getElementById("object-detail-back");
 const objectSearchForm = document.getElementById("object-search-form");
 const objectSearchInput = document.getElementById("object-search-input");
+const objectSearchCombobox = document.getElementById("object-search-combobox");
 const objectSearchOptions = document.getElementById("object-search-options");
-const objectSearchFeedback = document.getElementById("object-search-feedback");
 const objectDetailStatus = document.getElementById("object-detail-status");
 
 const stickyWidth = 240;
@@ -1174,46 +1174,108 @@ function enterObjectDetailMode(objectId) {
   render();
 }
 
-function populateObjectSearchOptions() {
-  if (!objectSearchOptions) return;
+const objectSearchState = { matches: [], activeIndex: -1 };
 
-  const objectIds = [...new Set(allEvents.map(event => event.objectId).filter(Boolean))]
-    .sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+function getObjectSearchMatches(query) {
+  const normalized = query.trim().toLowerCase();
 
+  return objectSummaries
+    .filter(object => !normalized || String(object.objectId).toLowerCase().includes(normalized))
+    .sort((a, b) => String(a.objectId).localeCompare(String(b.objectId), undefined, { numeric: true }));
+}
+
+function setObjectSearchPopupOpen(isOpen) {
+  objectSearchCombobox?.classList.toggle("open", isOpen);
+  objectSearchInput?.setAttribute("aria-expanded", String(isOpen));
+  if (!isOpen) objectSearchState.activeIndex = -1;
+}
+
+function renderObjectSearchOptions() {
+  if (!objectSearchOptions || !objectSearchInput) return;
+
+  objectSearchState.matches = getObjectSearchMatches(objectSearchInput.value);
   objectSearchOptions.innerHTML = "";
-  objectIds.forEach(objectId => {
-    const option = document.createElement("option");
-    option.value = objectId;
-    objectSearchOptions.appendChild(option);
+
+  if (objectSearchState.matches.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "object-search-empty";
+    empty.textContent = "No matching object";
+    objectSearchOptions.appendChild(empty);
+    return;
+  }
+
+  objectSearchState.matches.forEach((object, index) => {
+    const row = document.createElement("div");
+    row.className = "object-search-option";
+    row.id = `object-search-option-${index}`;
+    row.setAttribute("role", "option");
+    row.classList.toggle("active", index === objectSearchState.activeIndex);
+
+    const text = document.createElement("div");
+    text.className = "object-search-option-text";
+
+    const id = document.createElement("div");
+    id.className = "object-search-option-id";
+    id.textContent = object.objectId;
+    text.appendChild(id);
+
+    if (object.institution) {
+      const institution = document.createElement("div");
+      institution.className = "object-search-option-meta";
+      institution.textContent = object.institution;
+      text.appendChild(institution);
+    }
+
+    const count = document.createElement("span");
+    count.className = "filter-option-count";
+    count.textContent = String(object.eventCount);
+
+    row.append(text, count);
+
+    // mousedown so the choice lands before the input loses focus
+    row.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      selectObjectSearchResult(object.objectId);
+    });
+
+    objectSearchOptions.appendChild(row);
   });
+
+  const active = objectSearchOptions.querySelector(".object-search-option.active");
+  active?.scrollIntoView({ block: "nearest" });
+  if (active) objectSearchInput.setAttribute("aria-activedescendant", active.id);
+  else objectSearchInput.removeAttribute("aria-activedescendant");
+}
+
+function selectObjectSearchResult(objectId) {
+  if (objectSearchInput) objectSearchInput.value = objectId;
+  setObjectSearchPopupOpen(false);
+  objectSearchInput?.blur();
+  enterObjectDetailMode(objectId);
 }
 
 function findObjectIdByQuery(query) {
   const normalized = query.trim().toLowerCase();
-  if (!normalized) return { objectId: null, matchCount: 0 };
+  if (!normalized) return null;
 
-  const objectIds = [...new Set(allEvents.map(event => event.objectId).filter(Boolean))];
+  const objectIds = objectSummaries.map(object => object.objectId).filter(Boolean);
   const exact = objectIds.find(objectId => String(objectId).toLowerCase() === normalized);
-  if (exact) return { objectId: exact, matchCount: 1 };
+  if (exact) return exact;
 
   const partial = objectIds.filter(objectId => String(objectId).toLowerCase().includes(normalized));
-  return { objectId: partial.length === 1 ? partial[0] : null, matchCount: partial.length };
+  return partial.length === 1 ? partial[0] : null;
 }
 
 function applyObjectSearch() {
   if (!objectSearchInput) return;
 
-  const query = objectSearchInput.value;
-  const { objectId, matchCount } = findObjectIdByQuery(query);
+  const objectId = findObjectIdByQuery(objectSearchInput.value);
 
-  if (objectSearchFeedback) {
-    if (!query.trim() || objectId) objectSearchFeedback.textContent = "";
-    else if (matchCount > 1) objectSearchFeedback.textContent = `${matchCount} matches, pick one`;
-    else objectSearchFeedback.textContent = "No matching object";
-  }
-
-  if (objectId) {
-    enterObjectDetailMode(objectId);
+  // No single match: keep the list open so the user can pick one
+  if (objectId) selectObjectSearchResult(objectId);
+  else {
+    renderObjectSearchOptions();
+    setObjectSearchPopupOpen(true);
   }
 }
 
@@ -1426,7 +1488,6 @@ function setupFilterUI() {
     state.comparisonSnapshot = null;
 
     if (objectSearchInput) objectSearchInput.value = "";
-    if (objectSearchFeedback) objectSearchFeedback.textContent = "";
 
       render();
     };
@@ -1466,17 +1527,41 @@ function setupFilterUI() {
   if (objectSearchForm && !objectSearchForm._bound) {
     objectSearchForm.addEventListener("submit", (event) => {
       event.preventDefault();
-      applyObjectSearch();
+      const active = objectSearchState.matches[objectSearchState.activeIndex];
+      if (active) selectObjectSearchResult(active.objectId);
+      else applyObjectSearch();
     });
 
     objectSearchInput?.addEventListener("input", () => {
-      if (objectSearchFeedback) objectSearchFeedback.textContent = "";
+      objectSearchState.activeIndex = -1;
+      renderObjectSearchOptions();
+      setObjectSearchPopupOpen(true);
+    });
+
+    objectSearchInput?.addEventListener("focus", () => {
+      renderObjectSearchOptions();
+      setObjectSearchPopupOpen(true);
+    });
+
+    objectSearchInput?.addEventListener("blur", () => setObjectSearchPopupOpen(false));
+
+    objectSearchInput?.addEventListener("keydown", (event) => {
+      const total = objectSearchState.matches.length;
+
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        if (!total) return;
+        setObjectSearchPopupOpen(true);
+        const step = event.key === "ArrowDown" ? 1 : -1;
+        objectSearchState.activeIndex = (objectSearchState.activeIndex + step + total) % total;
+        renderObjectSearchOptions();
+      } else if (event.key === "Escape") {
+        setObjectSearchPopupOpen(false);
+      }
     });
 
     objectSearchForm._bound = true;
   }
-
-  populateObjectSearchOptions();
 
   // NAV TOOLTIP
   if(navHelpBtn){

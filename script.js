@@ -2912,7 +2912,25 @@ function render() {
         .attr("pointer-events", "none");
     }
 
+    // Invisible hit area so the dotted tails select and show the tooltip too
+    const addOpenEndHitArea = (x) => {
+      group.append("rect")
+        .attr("class", "event-interactive")
+        .attr("x", x)
+        .attr("y", rowCenterY - Math.max(8, currentEventHeight / 2))
+        .attr("width", OPEN_END_LINE_LENGTH)
+        .attr("height", Math.max(16, currentEventHeight))
+        .attr("fill", "transparent")
+        .style("cursor", "pointer")
+        .on("pointerdown", (ev) => handleEventSelectionPointerDown(ev, event))
+        .on("mouseenter", (ev) => showTooltip(tooltipHTMLForEvent(event), ev.clientX, ev.clientY))
+        .on("mousemove", (ev) => showTooltip(tooltipHTMLForEvent(event), ev.clientX, ev.clientY))
+        .on("mouseleave", hideTooltip);
+    };
+
     if (openLeft) {
+      addOpenEndHitArea(visualSpan.x0 - OPEN_END_LINE_LENGTH);
+
       group.append("line")
         .attr("x1", visualSpan.x0 - OPEN_END_LINE_LENGTH)
         .attr("x2", visualSpan.x0)
@@ -2926,6 +2944,8 @@ function render() {
     }
 
     if (openRight) {
+      addOpenEndHitArea(visualSpan.x1);
+
       group.append("line")
         .attr("x1", visualSpan.x1)
         .attr("x2", visualSpan.x1 + OPEN_END_LINE_LENGTH)

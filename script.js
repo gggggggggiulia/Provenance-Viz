@@ -3328,11 +3328,19 @@ svg.on("pointerup", endDrag);
 svg.on("pointercancel", endDrag);
 svg.on("pointerleave", endDrag);
 
-window.addEventListener("resize", () => {
+function handleTimelineResize() {
   width = wrap.clientWidth;
   height = wrap.clientHeight;
-  positionNavHelpTooltip();
   render();
-});
+}
+
+window.addEventListener("resize", handleTimelineResize);
+
+// The toolbar changes height when the filter bar opens or closes
+if (window.ResizeObserver) {
+  new ResizeObserver(() => {
+    if (wrap.clientWidth !== width || wrap.clientHeight !== height) handleTimelineResize();
+  }).observe(wrap);
+}
 
 loadCSV();

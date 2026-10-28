@@ -185,7 +185,6 @@ const filtersOverlay = document.getElementById("filters-overlay");
 const resetFiltersBtn = document.getElementById("reset-filters");
 const activeFilterCount = document.getElementById("active-filter-count");
 const filterSummary = document.getElementById("filter-summary");
-const semanticZoomIndicator = document.getElementById("semantic-zoom-indicator");
 const navHelpBtn = document.getElementById("nav-help-btn");
 const timelineYearForm = document.getElementById("timeline-year-form");
 const timelineYearInput = document.getElementById("timeline-year-input");
@@ -267,9 +266,7 @@ const minEventScaleY = minEventHeight / eventHeight;
 const maxEventScaleY = maxEventHeight / eventHeight;
 const minYear = 1000;
 const maxYear = 2800;
-const patternZoomThreshold = 1.9;
 const patternMinEventHeight = 9;
-const tooltipZoomThreshold = 1.15;
 const specialYear = 1897;
 const objectMetaMinBottomPadding = 10;
 const exactDateWidthPx = 5;
@@ -278,13 +275,10 @@ const exactDateFillOpacity = ALPHA.edge;
 const exactDateStrokeWidth = 1;
 const regularMidOpacity = ALPHA.body;
 const filteredOutOpacity = OPACITY.filteredOut;
-const singleSectionOpacityFar = ALPHA.body;
-const singleSectionOpacityNear = ALPHA.body;
-const singleSectionOpacityZoomFar = 0.55;
-const singleSectionOpacityZoomNear = 1.2;
 const objectGapExtra = 14;
 const targetMaxVisibleYears = 5;
-const targetMinVisibleYears = 2000;
+// Most zoomed out = the whole axis, so the zoom-out button disables at the real limit
+const targetMinVisibleYears = maxYear - minYear;
 
 let width = wrap.clientWidth;
 let height = wrap.clientHeight;
@@ -485,14 +479,12 @@ const state = {
 let dragState = null;
 let storedDetailEventScaleY = 1;
 let scrollAnimationFrame = null;
-let rowsCacheForZoomIndicator = [];
 
 const tooltipEl = document.createElement("div");
 tooltipEl.className = "timeline-tooltip";
 document.body.appendChild(tooltipEl);
 
 function showTooltip(html, clientX, clientY) {
-  if (state.scale < tooltipZoomThreshold) return;
   tooltipEl.innerHTML = html;
   tooltipEl.classList.add("visible");
 
@@ -597,17 +589,6 @@ function contentHeightForScaleY(scaleY) {
   }
 
   return cursorY;
-}
-
-function singleSectionOpacityForZoom() {
-  if (state.scale <= singleSectionOpacityZoomFar) return singleSectionOpacityFar;
-  if (state.scale >= singleSectionOpacityZoomNear) return singleSectionOpacityNear;
-
-  const t =
-    (state.scale - singleSectionOpacityZoomFar) /
-    (singleSectionOpacityZoomNear - singleSectionOpacityZoomFar);
-
-  return singleSectionOpacityFar + t * (singleSectionOpacityNear - singleSectionOpacityFar);
 }
 
 function buildSection(kind, startRaw, endRaw, opacity, pattern, uncertaintyCode = "") {
@@ -2106,26 +2087,6 @@ function getSemanticZoomLevel() {
   return 3;                        // DETAIL
 }
 
-function getEventRenderedWidth(event) {
-  return Math.max(2, scaledX(event.eventEnd) - scaledX(event.eventStart));
-}
-
-function shouldUseOverviewGlyphMode(event) {
-  return getSemanticZoomLevel() === 1 && getEventRenderedWidth(event) < 18;
-}
-
-function isSectionSmallNonExact(section) {
-  return section.isExactDate !== true;
-}
-
-function getCurrentSemanticZoomLevelForView() {
-  const level = getSemanticZoomLevel();
-
-  if (level === 1) return "Overview";
-  if (level === 2) return "Structure";
-  return "Detail";
-}
-
 function isOverviewZoomLevel() {
   return getSemanticZoomLevel() === 1;
 }
@@ -2593,7 +2554,7 @@ function initializeFromData() {
           .filter((section) => section.start !== null && section.end !== null)
           .map((section) => {
             let resolvedOpacity = section.opacity ?? (section.kind === "mid" ? regularMidOpacity : ALPHA.edge);
-            if (section.kind === "single") resolvedOpacity = singleSectionOpacityForZoom();
+            if (section.kind === "single") resolvedOpacity = ALPHA.body;
 
             return {
               ...section,
@@ -2706,7 +2667,6 @@ function render() {
   clampScrollY();
 
   const rows = currentVisibleRows();
-  rowsCacheForZoomIndicator = rows;
   const currentContentHeight = contentHeightFromRows(rows);
 
   svg.attr("viewBox", `0 0 ${width} ${height}`);
@@ -3134,10 +3094,6 @@ function render() {
   updateObjectDetailToolbar();
   updateToolbarResultsSummary();
   updateZoomControls();
-
-  if (semanticZoomIndicator) {
-    semanticZoomIndicator.textContent = `Zoom level: ${getCurrentSemanticZoomLevelForView()}`;
-  }
 }
 
 function zoomAround(pointerX, deltaY) {

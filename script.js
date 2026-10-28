@@ -3150,16 +3150,10 @@ function render() {
 
       const badgeEl = document.createElement("div");
       badgeEl.className = "left-object-badge";
-      // Spell out what the number counts; with filters on, show matches out of the total
-      const shownCount = objectRows.filter(row => row.matched).length;
-      const totalCount = object.eventCount;
-      const filtered = activeFilterTotal() > 0 && shownCount < totalCount;
-      badgeEl.textContent = filtered
-        ? `${shownCount}/${totalCount} events`
-        : `${totalCount} ${totalCount === 1 ? "event" : "events"}`;
-      badgeEl.title = filtered
-        ? `${shownCount} of ${totalCount} known events match the filters`
-        : `${totalCount} known ${totalCount === 1 ? "event" : "events"} for this object`;
+      // Spell out what the number counts: all known events of the object
+      const eventsLabel = `${object.eventCount} ${object.eventCount === 1 ? "event" : "events"}`;
+      badgeEl.textContent = eventsLabel;
+      badgeEl.title = `${object.eventCount} known ${object.eventCount === 1 ? "event" : "events"} for this object`;
       innerCard.appendChild(badgeEl);
 
       card.appendChild(innerCard);

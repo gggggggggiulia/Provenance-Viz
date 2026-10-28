@@ -984,15 +984,7 @@ function renderEventCard(event) {
   }
 
   eventCardCategory.innerHTML = `
-    <span style="
-      display:inline-block;
-      width:10px;
-      height:10px;
-      border-radius:50%;
-      background:${event.categoryColor};
-      margin-right:2px;
-      vertical-align:middle-1;
-    "></span>
+    <span class="event-card-category-dot" style="background:${event.categoryColor}"></span>
     ${event.label || ""}
   `;
   eventCardObject.textContent = `Object ${event.objectId ?? ""}`.trim();
@@ -1051,7 +1043,7 @@ function renderEventCard(event) {
       </div>
 
       <div class="event-card-row">
-        <div class="event-card-label">Edo designation</div>
+        <div class="event-card-label">EDO designation</div>
         <div class="event-card-value">${edoText}</div>
       </div>
     </div>

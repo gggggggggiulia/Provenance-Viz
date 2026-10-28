@@ -1034,10 +1034,11 @@ body {
 
 .left-object-badge {
   position: absolute;
-  top: 8px;
+  top: -1px;
   right: 4px;
   min-width: 26px;
   height: 18px;
+  white-space: nowrap;
   padding: 0 6px;
   border-radius: 999px;
   display: inline-flex;

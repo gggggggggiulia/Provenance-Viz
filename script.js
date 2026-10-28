@@ -2569,7 +2569,7 @@ function showObjectMeta(yTop, yBottom) {
 }
 
 function objectTextWidth() {
-  return stickyWidth - 72;
+  return stickyWidth - 96;
 }
 
 function truncateText(text, maxChars) {
@@ -3114,9 +3114,9 @@ function render() {
 
       if (yBottom < axisHeight - 20 || yTop > height + 20) return;
 
-      const textMaxWidth = objectTextWidth();
-      const titleChars = charsForWidth(textMaxWidth, 13);
-      const metaChars = charsForWidth(textMaxWidth, 11);
+      // The title shares its line with the event count badge; meta lines run full width
+      const titleChars = charsForWidth(objectTextWidth(), 13);
+      const metaChars = charsForWidth(stickyWidth - 28, 11);
 
       const card = document.createElement("div");
       card.className = "left-object-card";
@@ -3150,7 +3150,16 @@ function render() {
 
       const badgeEl = document.createElement("div");
       badgeEl.className = "left-object-badge";
-      badgeEl.textContent = objectRows.length;
+      // Spell out what the number counts; with filters on, show matches out of the total
+      const shownCount = objectRows.filter(row => row.matched).length;
+      const totalCount = object.eventCount;
+      const filtered = activeFilterTotal() > 0 && shownCount < totalCount;
+      badgeEl.textContent = filtered
+        ? `${shownCount}/${totalCount} events`
+        : `${totalCount} ${totalCount === 1 ? "event" : "events"}`;
+      badgeEl.title = filtered
+        ? `${shownCount} of ${totalCount} known events match the filters`
+        : `${totalCount} known ${totalCount === 1 ? "event" : "events"} for this object`;
       innerCard.appendChild(badgeEl);
 
       card.appendChild(innerCard);

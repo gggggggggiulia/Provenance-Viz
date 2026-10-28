@@ -40,8 +40,9 @@ body {
   --tb-line: rgba(15, 23, 42, 0.12);
   --tb-line-strong: rgba(15, 23, 42, 0.22);
   --tb-soft: rgba(15, 23, 42, 0.04);
-  --tb-accent: #4f46e5;
-  --tb-accent-soft: rgba(79, 70, 229, 0.10);
+  --tb-accent: #B6A46F; /* same gold as the active counts in the filters panel */
+  --tb-accent-text: #7d6c3c; /* darker gold so links stay readable on white */
+  --tb-accent-soft: rgba(182, 164, 111, 0.16);
   --tb-error: #b42318;
 
   display:flex;
@@ -117,7 +118,7 @@ body {
   background:none;
   padding:0;
   font:inherit;
-  color:var(--tb-accent);
+  color:var(--tb-accent-text);
   cursor:pointer;
 }
 
@@ -176,7 +177,7 @@ body {
 .toolbar-link:focus-visible,
 .toolbar-crumb-link:focus-visible,
 .filter-chip-remove:focus-visible {
-  outline: 2px solid var(--tb-accent, #4f46e5);
+  outline: 2px solid var(--tb-accent, #B6A46F);
   outline-offset: 1px;
 }
 
@@ -215,6 +216,7 @@ body {
   font-weight: 600;
   background: var(--tb-accent);
   color: #fff;
+  font-weight: 700;
 }
 
 .toolbar-link{
@@ -223,7 +225,7 @@ body {
   padding:0 4px;
   font:inherit;
   font-size:12px;
-  color:var(--tb-accent);
+  color:var(--tb-accent-text);
   cursor:pointer;
   white-space:nowrap;
 }

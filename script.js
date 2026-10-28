@@ -217,6 +217,10 @@ const OVERVIEW_DIAMOND_SIZE = 16;
 const OVERVIEW_LONG_SEGMENT_THRESHOLD = 18;
 const OVERVIEW_DOUBLE_DIAMOND_MIN_LINE_BODY_LENGTH = 10;
 const OVERVIEW_FIXED_EVENT_HEIGHT = 10;
+// Outside Overview, events narrower than this keep their Overview glyph
+const MIN_BAR_WIDTH_PX = 8;
+// Uncertainty patterns and section separators need at least this much room
+const MIN_PATTERN_SECTION_WIDTH_PX = 12;
 const OVERVIEW_FIXED_EVENT_SCALE_Y = OVERVIEW_FIXED_EVENT_HEIGHT / eventHeight;
 
 // Three alpha levels for every event mark, plus one for filtered-out events.
@@ -2087,6 +2091,14 @@ function getSemanticZoomLevel() {
   return 3;                        // DETAIL
 }
 
+function eventBarWidth(event) {
+  return scaledX(event.eventEnd) - scaledX(event.eventStart);
+}
+
+function shouldDrawAsGlyph(event, semanticLevel) {
+  return semanticLevel === 1 || eventBarWidth(event) < MIN_BAR_WIDTH_PX;
+}
+
 function isOverviewZoomLevel() {
   return getSemanticZoomLevel() === 1;
 }
@@ -2785,6 +2797,7 @@ function render() {
       .attr("opacity", eventVisualOpacity);
 
     const semanticLevel = getSemanticZoomLevel();
+    const drawAsGlyph = shouldDrawAsGlyph(event, semanticLevel);
 
     const rowCenterY = rowBaseTop + rowHeight / 2;
     const normalRectY = rowCenterY - currentEventHeight / 2;
@@ -2793,7 +2806,7 @@ function render() {
       let displayedX0 = scaledX(event.eventStart);
       let displayedX1 = scaledX(event.eventEnd);
 
-      if (semanticLevel === 1) {
+      if (drawAsGlyph) {
         const overviewSpan = getOverviewDisplayedSpan(event);
         displayedX0 = overviewSpan.x0;
         displayedX1 = overviewSpan.x1;
@@ -2848,7 +2861,7 @@ function render() {
         .attr("pointer-events", "none");
     }
 
-  if (semanticLevel === 1) {
+  if (drawAsGlyph) {
 
     drawOverviewGlyphEvent(
       group,
@@ -2920,7 +2933,8 @@ function render() {
           .on("mouseleave", hideTooltip);
 
         const showPattern =
-          semanticLevel === 3 &&
+          semanticLevel >= 2 &&
+          rectWidth >= MIN_PATTERN_SECTION_WIDTH_PX &&
           matched &&
           currentEventHeight > patternMinEventHeight &&
           section.pattern !== "none";
@@ -2937,7 +2951,7 @@ function render() {
 
         }
 
-        if (semanticLevel === 3 && sectionIndex > 0) {
+        if (semanticLevel >= 2 && sectionIndex > 0 && rectWidth >= MIN_PATTERN_SECTION_WIDTH_PX) {
 
           const separatorX = x0;
 
@@ -3008,13 +3022,28 @@ function render() {
     } else if (eventEndsWithDiamond) {
       effectiveLabelGap = labelGapEndDiamond;
     }
-    const labelAnchorX = scaledX(labelAnchorBaseYear) + effectiveLabelGap;
+    const eventSpan = drawAsGlyph
+      ? getOverviewDisplayedSpan(event)
+      : { x0: scaledX(event.eventStart), x1: scaledX(labelAnchorBaseYear) };
 
-    labelsLayer.append("text")
-      .attr("class", "event-label")
-      .attr("x", labelAnchorX)
-      .attr("y", rowCenterY)
-      .text(event.label);
+    const labelAnchorX = drawAsGlyph
+      ? eventSpan.x1 + labelGap
+      : eventSpan.x1 + effectiveLabelGap;
+
+    // Labels go right of the event; if they would run past the edge, left of it; else skip
+    const estimatedLabelWidth = String(event.label || "").length * 7.5;
+    const fitsRight = labelAnchorX + estimatedLabelWidth <= width - 4;
+    const leftAnchorX = eventSpan.x0 - labelGap;
+    const fitsLeft = leftAnchorX - estimatedLabelWidth >= stickyWidth + 4;
+
+    if (fitsRight || fitsLeft) {
+      labelsLayer.append("text")
+        .attr("class", "event-label")
+        .attr("x", fitsRight ? labelAnchorX : leftAnchorX)
+        .attr("y", rowCenterY)
+        .attr("text-anchor", fitsRight ? "start" : "end")
+        .text(event.label);
+    }
 
   }
   

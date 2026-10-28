@@ -496,6 +496,10 @@ body {
   margin:12px 0 6px;
 }
 
+.toolbar-popover-legend .popover-title{
+  margin:22px 0 10px;
+}
+
 .popover-title:first-child{
   margin-top:0;
 }
@@ -517,10 +521,24 @@ body {
   color:var(--muted);
 }
 
+.legend-list{
+  gap:9px;
+}
+
+.legend-list li{
+  align-items:flex-start;
+  line-height:1.35;
+}
+
 .legend-list b{
+  display:block;
   color:var(--text);
   font-weight:600;
-  margin-right:4px;
+}
+
+.legend-list .legend-swatch,
+.legend-list .legend-shape{
+  margin-top:2px;
 }
 
 .legend-swatch{
@@ -559,12 +577,6 @@ body {
   content:"";
   width:16px;
   border-top:3px dotted rgba(156,163,175,0.9);
-}
-
-.legend-symbols{
-  flex-direction:row;
-  flex-wrap:wrap;
-  gap:6px 14px;
 }
 
 .legend-symbol{

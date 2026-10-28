@@ -217,10 +217,8 @@ const OVERVIEW_DIAMOND_SIZE = 16;
 const OVERVIEW_LONG_SEGMENT_THRESHOLD = 18;
 const OVERVIEW_DOUBLE_DIAMOND_MIN_LINE_BODY_LENGTH = 10;
 const OVERVIEW_FIXED_EVENT_HEIGHT = 10;
-// Outside Overview, events narrower than this keep their Overview glyph
-const MIN_BAR_WIDTH_PX = 8;
-// Uncertainty patterns and section separators need at least this much room
-const MIN_PATTERN_SECTION_WIDTH_PX = 12;
+// Outside Overview, short events are drawn at least this wide so they stay visible and clickable
+const MIN_BAR_WIDTH_PX = 6;
 const OVERVIEW_FIXED_EVENT_SCALE_Y = OVERVIEW_FIXED_EVENT_HEIGHT / eventHeight;
 
 // Three alpha levels for every event mark, plus one for filtered-out events.
@@ -2095,10 +2093,6 @@ function eventBarWidth(event) {
   return scaledX(event.eventEnd) - scaledX(event.eventStart);
 }
 
-function shouldDrawAsGlyph(event, semanticLevel) {
-  return semanticLevel === 1 || eventBarWidth(event) < MIN_BAR_WIDTH_PX;
-}
-
 function isOverviewZoomLevel() {
   return getSemanticZoomLevel() === 1;
 }
@@ -2797,7 +2791,7 @@ function render() {
       .attr("opacity", eventVisualOpacity);
 
     const semanticLevel = getSemanticZoomLevel();
-    const drawAsGlyph = shouldDrawAsGlyph(event, semanticLevel);
+    const drawAsGlyph = semanticLevel === 1;
 
     const rowCenterY = rowBaseTop + rowHeight / 2;
     const normalRectY = rowCenterY - currentEventHeight / 2;
@@ -2884,6 +2878,10 @@ function render() {
     const structureDetailDoubleDiamondEvent =
       firstSection?.isExactDate === true && lastSection?.isExactDate === true;
 
+    // A too-short event becomes one bar of MIN_BAR_WIDTH_PX centred on it
+    const narrowEvent = eventBarWidth(event) < MIN_BAR_WIDTH_PX;
+    let narrowBarDrawn = false;
+
     event.sections.forEach((section, sectionIndex) => {
 
       const x0 = scaledX(section.start);
@@ -2903,16 +2901,22 @@ function render() {
         });
 
       } else {
+        if (narrowEvent && narrowBarDrawn) return;
+
         const rectHeight = currentEventHeight;
         const rectY = normalRectY;
-        const rectWidth = Math.max(2, x1 - x0);
-        const rectX = x0;
+        const eventCenterX = (scaledX(event.eventStart) + scaledX(event.eventEnd)) / 2;
+        const rectWidth = narrowEvent ? MIN_BAR_WIDTH_PX : Math.max(2, x1 - x0);
+        const rectX = narrowEvent ? eventCenterX - MIN_BAR_WIDTH_PX / 2 : x0;
+        if (narrowEvent) narrowBarDrawn = true;
 
         let rectOpacity = section.opacity;
 
         if (structureDetailDoubleDiamondEvent && matched) {
           rectOpacity = ALPHA.body;
         }
+
+        if (narrowEvent) rectOpacity = ALPHA.body;
 
 
         const rect = group.append("rect")
@@ -2933,8 +2937,7 @@ function render() {
           .on("mouseleave", hideTooltip);
 
         const showPattern =
-          semanticLevel >= 2 &&
-          rectWidth >= MIN_PATTERN_SECTION_WIDTH_PX &&
+          semanticLevel === 3 &&
           matched &&
           currentEventHeight > patternMinEventHeight &&
           section.pattern !== "none";
@@ -2951,7 +2954,7 @@ function render() {
 
         }
 
-        if (semanticLevel >= 2 && sectionIndex > 0 && rectWidth >= MIN_PATTERN_SECTION_WIDTH_PX) {
+        if (semanticLevel === 3 && sectionIndex > 0) {
 
           const separatorX = x0;
 

@@ -423,6 +423,11 @@ plotClip.append("rect");
 const labelClip = defs.append("clipPath").attr("id", "label-clip");
 labelClip.append("rect");
 
+// Year labels stop at the object column divider
+const AXIS_LABEL_HALF_WIDTH = 16;
+const axisClip = defs.append("clipPath").attr("id", "axis-clip");
+axisClip.append("rect");
+
 defs.append("pattern")
   .attr("id", "pattern-horizontal")
   .attr("patternUnits", "userSpaceOnUse")
@@ -2799,6 +2804,14 @@ function render() {
     .attr("y1", axisHeight)
     .attr("y2", axisHeight);
 
+  axisClip.select("rect")
+    .attr("x", stickyWidth)
+    .attr("y", 0)
+    .attr("width", Math.max(0, width - stickyWidth))
+    .attr("height", axisHeight);
+
+  const axisLabelsLayer = axisLayer.append("g").attr("clip-path", "url(#axis-clip)");
+
   const pxPerYear = Math.abs((baseScale(1) - baseScale(0)) * state.scale);
   const step = visibleYearStep(pxPerYear);
   const [domainStart, domainEnd] = visibleDomain();
@@ -2816,7 +2829,10 @@ function render() {
       .attr("y2", Math.max(height, currentContentHeight - state.scrollY))
       .attr("class", `${major ? "major " : ""}year-grid-line`);
 
-    axisLayer.append("text")
+    // Skip labels that would be cut in half by the divider
+    if (x < stickyWidth + AXIS_LABEL_HALF_WIDTH) return;
+
+    axisLabelsLayer.append("text")
       .attr("class", "axis-label")
       .attr("x", x)
       .attr("y", 18)
@@ -2833,7 +2849,7 @@ function render() {
       .attr("y1", axisHeight)
       .attr("y2", Math.max(height, currentContentHeight - state.scrollY));
 
-    axisLayer.append("text")
+    axisLabelsLayer.append("text")
       .attr("class", "axis-label-special")
       .attr("x", specialX)
       .attr("y", 34)

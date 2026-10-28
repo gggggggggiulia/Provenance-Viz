@@ -445,20 +445,19 @@ diagonalPattern.append("path")
   .attr("stroke-width", 1.5)
   .attr("stroke-linecap", "square");
 
-// Cross-hatch built from the same stripes as the diagonal pattern plus their mirror
+// Flattened cross-hatch: wide diamonds (about 2:1), lines closer to horizontal
 const diamondPattern = defs.append("pattern")
   .attr("id", "pattern-diamond")
   .attr("patternUnits", "userSpaceOnUse")
   .attr("patternContentUnits", "userSpaceOnUse")
-  .attr("width", 12)
-  .attr("height", 12);
+  .attr("width", 16)
+  .attr("height", 9);
 
 diamondPattern.append("path")
-  .attr("d", "M -6 12 L 6 0 M 0 12 L 12 0 M 6 12 L 18 0 M -6 0 L 6 12 M 0 0 L 12 12 M 6 0 L 18 12")
+  .attr("d", "M -16 9 L 16 -9 M 0 9 L 16 0 M -16 18 L 16 0 M 0 0 L 16 9 M -16 -9 L 16 9 M 0 -9 L 32 9")
   .attr("fill", "none")
   .attr("stroke", "white")
-  .attr("stroke-width", 1.5)
-  .attr("stroke-linecap", "square");
+  .attr("stroke-width", 1.6);
 
 const state = {
   scale: 1,

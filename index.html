@@ -70,6 +70,14 @@
           <span id="zoom-range" class="toolbar-zoom-range" title="Visible years"></span>
           <button id="zoom-in" class="toolbar-zoom-btn" type="button" aria-label="Zoom in" title="Zoom in">+</button>
         </div>
+        <div class="toolbar-zoom toolbar-rows" role="group" aria-label="Row height">
+          <button id="rows-shorter" class="toolbar-zoom-btn" type="button" aria-label="Shorter rows" title="Shorter rows (Alt + scroll)">
+            <svg class="toolbar-rows-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="5" width="12" height="2" rx="1"/><rect x="2" y="9" width="12" height="2" rx="1"/></svg>
+          </button>
+          <button id="rows-taller" class="toolbar-zoom-btn" type="button" aria-label="Taller rows" title="Taller rows (Alt + scroll)">
+            <svg class="toolbar-rows-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="12" height="5" rx="1.2"/><rect x="2" y="9" width="12" height="5" rx="1.2"/></svg>
+          </button>
+        </div>
         <button id="reset-view" class="toolbar-btn secondary" type="button" title="Fit all events in view">
           Fit
         </button>
@@ -110,9 +118,12 @@
           <div id="nav-help-tooltip" class="toolbar-popover toolbar-popover-help" hidden>
             <div class="popover-title">Navigate the timeline</div>
             <ul class="help-list">
-              <li><span>Scroll</span><span>Move through time and objects</span></li>
-              <li><span><kbd>Ctrl</kbd> + scroll</span><span>Zoom</span></li>
-              <li><span><kbd>Shift</kbd> + scroll</span><span>Resize matched events</span></li>
+              <li><span>Scroll or drag</span><span>Move through objects and time</span></li>
+              <li><span><kbd>Shift</kbd> + scroll</span><span>Move through time</span></li>
+              <li><span><kbd>Ctrl</kbd> + scroll / pinch</span><span>Zoom</span></li>
+              <li><span><kbd>Alt</kbd> + scroll</span><span>Row height</span></li>
+              <li><span><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></span><span>Move (with <kbd>Shift</kbd>: faster)</span></li>
+              <li><span><kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd></span><span>Zoom in, out, fit</span></li>
               <li><span><kbd>/</kbd></span><span>Search objects</span></li>
               <li><span><kbd>Esc</kbd></span><span>Close this panel</span></li>
             </ul>

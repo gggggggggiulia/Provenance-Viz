@@ -431,6 +431,18 @@ body {
   cursor:default;
 }
 
+.toolbar-rows .toolbar-zoom-btn + .toolbar-zoom-btn{
+  border-left:1px solid var(--tb-line);
+}
+
+.toolbar-rows-icon{
+  width:14px;
+  height:14px;
+  background:none;
+  fill:currentColor;
+  vertical-align:middle;
+}
+
 .toolbar-zoom-range{
   display:inline-flex;
   align-items:center;
@@ -469,6 +481,10 @@ body {
 
 .toolbar-popover-legend{
   width:320px;
+}
+
+.toolbar-popover-help{
+  width:360px;
 }
 
 .popover-title{
@@ -560,7 +576,7 @@ body {
 
 .help-list li{
   display:grid;
-  grid-template-columns:110px 1fr;
+  grid-template-columns:150px 1fr;
   gap:12px;
   align-items:baseline;
 }

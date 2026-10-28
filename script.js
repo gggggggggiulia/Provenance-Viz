@@ -191,6 +191,8 @@ const timelineYearInput = document.getElementById("timeline-year-input");
 const timelineYearError = document.getElementById("timeline-year-error");
 const zoomInBtn = document.getElementById("zoom-in");
 const zoomOutBtn = document.getElementById("zoom-out");
+const rowsShorterBtn = document.getElementById("rows-shorter");
+const rowsTallerBtn = document.getElementById("rows-taller");
 const zoomRangeLabel = document.getElementById("zoom-range");
 const legendBtn = document.getElementById("legend-btn");
 const legendPopover = document.getElementById("legend-popover");
@@ -856,6 +858,36 @@ function zoomByStep(direction) {
   render();
 }
 
+// Row height: steps through the allowed event heights, anchored on the viewport centre
+const ROW_HEIGHT_STEP_SCALE_Y = 5 / eventHeight;
+
+function setRowScaleY(nextScaleY, pointerOffsetY = (height - axisHeight) / 2) {
+  if (isOverviewZoomLevel()) return;
+
+  const anchorRatio = verticalAnchorRatio(state.scrollY, pointerOffsetY, state.eventScaleY);
+  state.eventScaleY = clamp(nextScaleY, minEventScaleY, maxEventScaleY);
+  storedDetailEventScaleY = state.eventScaleY;
+  state.scrollY = scrollYFromAnchorRatio(anchorRatio, pointerOffsetY, state.eventScaleY);
+  clampScrollY(resizeOverscrollMargin());
+  render();
+}
+
+function rowHeightByStep(direction) {
+  setRowScaleY(state.eventScaleY + direction * ROW_HEIGHT_STEP_SCALE_Y);
+}
+
+function panByViewport(fraction) {
+  state.offsetX -= (width - stickyWidth) * fraction;
+  clampOffsetX();
+  render();
+}
+
+function scrollRowsBy(deltaY) {
+  state.scrollY += deltaY;
+  clampScrollY();
+  render();
+}
+
 function visibleYearRange() {
   const toYear = (x) => baseScale.invert((x - state.offsetX) / state.scale);
   return {
@@ -872,6 +904,17 @@ function updateZoomControls() {
 
   if (zoomInBtn) zoomInBtn.disabled = state.scale >= maxAllowedScale() - 1e-6;
   if (zoomOutBtn) zoomOutBtn.disabled = state.scale <= minAllowedScale() + 1e-6;
+
+  const overview = isOverviewZoomLevel();
+  const overviewHint = "Row height is fixed in Overview: zoom in to change it";
+  if (rowsShorterBtn) {
+    rowsShorterBtn.disabled = overview || state.eventScaleY <= minEventScaleY + 1e-6;
+    rowsShorterBtn.title = overview ? overviewHint : "Shorter rows (Alt + scroll)";
+  }
+  if (rowsTallerBtn) {
+    rowsTallerBtn.disabled = overview || state.eventScaleY >= maxEventScaleY - 1e-6;
+    rowsTallerBtn.title = overview ? overviewHint : "Taller rows (Alt + scroll)";
+  }
 }
 
 // Fit the timeline to the events currently on screen (or the open object)
@@ -1522,6 +1565,8 @@ function setupFilterUI() {
   if (resetViewBtn) resetViewBtn.onclick = () => fitView();
   if (zoomInBtn) zoomInBtn.onclick = () => zoomByStep(1);
   if (zoomOutBtn) zoomOutBtn.onclick = () => zoomByStep(-1);
+  if (rowsShorterBtn) rowsShorterBtn.onclick = () => rowHeightByStep(-1);
+  if (rowsTallerBtn) rowsTallerBtn.onclick = () => rowHeightByStep(1);
 
   // GO TO YEAR
   if (timelineYearForm && !timelineYearForm._bound) {
@@ -1633,9 +1678,30 @@ function setupFilterUI() {
       if (event.key === "Escape") closeToolbarPopovers();
 
       const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "");
-      if (event.key === "/" && !typing && !event.ctrlKey && !event.metaKey) {
+      if (typing || event.ctrlKey || event.metaKey || event.altKey) return;
+
+      if (event.key === "/") {
         event.preventDefault();
         objectSearchInput?.focus();
+        return;
+      }
+
+      // Timeline navigation: arrows move, + / − zoom, 0 fits
+      const rowStep = (event.shiftKey ? 5 : 1) * eventHeight * state.eventScaleY * 2;
+      const keyActions = {
+        ArrowLeft: () => panByViewport(event.shiftKey ? -0.5 : -0.1),
+        ArrowRight: () => panByViewport(event.shiftKey ? 0.5 : 0.1),
+        ArrowUp: () => scrollRowsBy(-rowStep),
+        ArrowDown: () => scrollRowsBy(rowStep),
+        "+": () => zoomByStep(1),
+        "=": () => zoomByStep(1),
+        "-": () => zoomByStep(-1),
+        "0": () => fitView()
+      };
+      const action = keyActions[event.key];
+      if (action) {
+        event.preventDefault();
+        action();
       }
     });
 
@@ -3152,21 +3218,18 @@ svg.on("wheel", (event) => {
     return;
   }
 
-  if (event.shiftKey) {
-    if (isOverviewZoomLevel()) {
-      return;
-    }
-
+  // Alt + scroll changes the row height (some systems deliver it as deltaX)
+  if (event.altKey) {
     const [, pointerY] = d3.pointer(event, svg.node());
-    const pointerOffsetY = pointerY - axisHeight;
-    const baseScrollY = dragState ? dragState.scrollY : state.scrollY;
-    const baseScaleY = dragState ? dragState.eventScaleY : state.eventScaleY;
-    const anchorRatio = verticalAnchorRatio(baseScrollY, pointerOffsetY, baseScaleY);
-    const nextScaleY = clamp(state.eventScaleY - event.deltaY * 0.003, minEventScaleY, maxEventScaleY);
-    state.eventScaleY = nextScaleY;
-    storedDetailEventScaleY = state.eventScaleY;
-    state.scrollY = scrollYFromAnchorRatio(anchorRatio, pointerOffsetY, state.eventScaleY);
-    clampScrollY(resizeOverscrollMargin());
+    const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+    setRowScaleY(state.eventScaleY - delta * 0.003, pointerY - axisHeight);
+    return;
+  }
+
+  // Shift + scroll moves through time; macOS already turns it into deltaX
+  if (event.shiftKey) {
+    state.offsetX -= Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+    clampOffsetX();
     render();
     return;
   }
@@ -3197,7 +3260,7 @@ svg.on("pointerdown", (event) => {
     scrollY: state.scrollY,
     eventScaleY: state.eventScaleY,
     /* pointerCanvasY: d3.pointer(event, svg.node())[1], */
-    resizeMode: event.shiftKey
+    resizeMode: event.altKey
   };
   svg.node().setPointerCapture(event.pointerId);
 });
@@ -3207,7 +3270,7 @@ svg.on("pointermove", (event) => {
   const dx = event.clientX - dragState.startX;
   const dy = event.clientY - dragState.startY;
 
-  const resizeActive = dragState.resizeMode || event.shiftKey;
+  const resizeActive = dragState.resizeMode || event.altKey;
   if (resizeActive) {
     if (isOverviewZoomLevel()) {
       return;

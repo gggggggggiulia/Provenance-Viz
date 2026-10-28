@@ -187,10 +187,18 @@ const activeFilterCount = document.getElementById("active-filter-count");
 const filterSummary = document.getElementById("filter-summary");
 const semanticZoomIndicator = document.getElementById("semantic-zoom-indicator");
 const navHelpBtn = document.getElementById("nav-help-btn");
-const timelineDateStartInput = document.getElementById("timeline-date-start");
-const timelineDateEndInput = document.getElementById("timeline-date-end");
-const timelineDateRangeToggleBtn = document.getElementById("timeline-date-range-toggle");
-const timelineDateApplyBtn = document.getElementById("timeline-date-apply");
+const timelineYearForm = document.getElementById("timeline-year-form");
+const timelineYearInput = document.getElementById("timeline-year-input");
+const timelineYearError = document.getElementById("timeline-year-error");
+const zoomInBtn = document.getElementById("zoom-in");
+const zoomOutBtn = document.getElementById("zoom-out");
+const zoomRangeLabel = document.getElementById("zoom-range");
+const legendBtn = document.getElementById("legend-btn");
+const legendPopover = document.getElementById("legend-popover");
+const toolbarTitleBlock = document.getElementById("toolbar-title-block");
+const toolbarFiltersRow = document.getElementById("toolbar-filters-row");
+const objectDetailCrumb = document.getElementById("object-detail-crumb");
+const objectDetailMeta = document.getElementById("object-detail-meta");
 const mainToolbar = document.getElementById("main-toolbar");
 const resetViewBtn = document.getElementById("reset-view");
 const navHelpTooltip = document.getElementById("nav-help-tooltip");
@@ -462,7 +470,6 @@ const state = {
 
   selectedEventId: null,
   selectedEventData: null,
-  isDateRangeMode: false,
 };
 
 let dragState = null;
@@ -501,22 +508,29 @@ function tooltipHTMLForEvent(event) {
   `;
 }
 
-function positionNavHelpTooltip() {
-  if (!navHelpBtn || !navHelpTooltip) return;
-  const rect = navHelpBtn.getBoundingClientRect();
-  navHelpTooltip.style.left = `${rect.left}px`;
-  navHelpTooltip.style.top = `${rect.bottom + 10}px`;
+const toolbarPopovers = [];
+
+function closeToolbarPopovers(except = null) {
+  toolbarPopovers.forEach(({ button, popover }) => {
+    if (popover === except) return;
+    popover.hidden = true;
+    button.setAttribute("aria-expanded", "false");
+  });
 }
 
-function showNavHelpTooltip() {
-  if (!navHelpTooltip) return;
-  positionNavHelpTooltip();
-  navHelpTooltip.classList.add("visible");
-}
+function bindToolbarPopover(button, popover) {
+  if (!button || !popover || button._popoverBound) return;
 
-function hideNavHelpTooltip() {
-  if (!navHelpTooltip) return;
-  navHelpTooltip.classList.remove("visible");
+  toolbarPopovers.push({ button, popover });
+
+  button.addEventListener("click", () => {
+    const willOpen = popover.hidden;
+    closeToolbarPopovers(popover);
+    popover.hidden = !willOpen;
+    button.setAttribute("aria-expanded", String(willOpen));
+  });
+
+  button._popoverBound = true;
 }
 
 function scaledEventHeight() {
@@ -755,8 +769,18 @@ function updateToolbarResultsSummary() {
   const totalEvents = allEvents.length;
   const totalObjects = new Set(allEvents.map((event) => event.objectId)).size;
 
+  const ofTotal = (count, total) => (count === total ? `${total}` : `${count} of ${total}`);
+
+  // With filters on, count what matches rather than every row drawn
+  if (state.viewMode !== "objectDetail" && activeFilterTotal() > 0) {
+    const { matchingObjectCount, matchingEventCount } = getFilterResultsCounts();
+    toolbarResultsSummary.textContent =
+      `${ofTotal(matchingObjectCount, totalObjects)} objects · ${ofTotal(matchingEventCount, totalEvents)} events`;
+    return;
+  }
+
   toolbarResultsSummary.textContent =
-    `${visibleObjects}/${totalObjects} objects · ${visibleEvents}/${totalEvents} events`;
+    `${ofTotal(visibleObjects, totalObjects)} objects · ${ofTotal(visibleEvents, totalEvents)} events`;
 }
 
 function resetView() {
@@ -779,126 +803,126 @@ function resetView() {
   render();
 }
 
-function updateTimelineDateModeUI() {
-  if (!timelineDateEndInput || !timelineDateRangeToggleBtn) return;
+// Accepts "1897", "1890-1920", "1890–1920" or "1890 to 1920"
+function parseYearQuery(value) {
+  const match = String(value || "")
+    .trim()
+    .match(/^(-?\d{1,4})(?:\s*(?:-|–|—|to)\s*(-?\d{1,4}))?$/i);
 
-  const isRange = state.isDateRangeMode === true;
+  if (!match) return null;
 
-  timelineDateEndInput.classList.toggle("hidden", !isRange);
-  timelineDateRangeToggleBtn.setAttribute("aria-expanded", String(isRange));
-  timelineDateRangeToggleBtn.textContent = isRange ? "− End" : "+ End";
-  timelineDateRangeToggleBtn.title = isRange ? "Use single date mode" : "Add end date";
+  const start = Number(match[1]);
+  const end = match[2] !== undefined ? Number(match[2]) : null;
+
+  if (end === null) return { start, end: null };
+  return { start: Math.min(start, end), end: Math.max(start, end) };
 }
 
-function parseDateInputToDecimalYear(value) {
-  if (!value) return null;
+function centerTimelineOnYear(year) {
+  const viewportWidth = width - stickyWidth;
+  const viewportCenterX = stickyWidth + viewportWidth / 2;
 
-  const parts = String(value).split("-");
-  if (parts.length !== 3) return null;
-
-  const year = Number(parts[0]);
-  const month = Number(parts[1]);
-  const day = Number(parts[2]);
-
-  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
-    return null;
-  }
-
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (Number.isNaN(date.getTime())) return null;
-
-  const startOfYear = Date.UTC(year, 0, 1);
-  const startOfNextYear = Date.UTC(year + 1, 0, 1);
-  const fraction = (date.getTime() - startOfYear) / (startOfNextYear - startOfYear);
-
-  return year + fraction;
+  state.offsetX = viewportCenterX - baseScale(year + 0.5) * state.scale;
+  clampOffsetX();
 }
 
-function applyToolbarDateNavigation() {
+function applyToolbarYearNavigation() {
+  if (!timelineYearInput) return;
 
-  console.log("applyToolbarDateNavigation start", {
-    startValue: timelineDateStartInput?.value,
-    endValue: timelineDateEndInput?.value,
-    isRangeMode: state.isDateRangeMode
-  });
+  const query = parseYearQuery(timelineYearInput.value);
+  const outOfRange = query && (query.start < minYear || (query.end ?? query.start) > maxYear);
 
-  if (!timelineDateStartInput) return;
-
-  const startValue = timelineDateStartInput.value;
-  const endValue = timelineDateEndInput ? timelineDateEndInput.value : "";
-
-  const startYear = parseDateInputToDecimalYear(startValue);
-  const endYear = parseDateInputToDecimalYear(endValue);
-  console.log("parsed years", { startYear, endYear });
-
-  const isRangeMode = state.isDateRangeMode === true;
-
-  if (!isRangeMode) {
-    if (startYear === null) return;
-
-    const viewportWidth = width - stickyWidth;
-    const currentSpanYears = (maxYear - minYear) / state.scale;
-    const targetMinYear = startYear - currentSpanYears / 2;
-    const targetMaxYear = startYear + currentSpanYears / 2;
-
-    const targetScale = (maxYear - minYear) / (targetMaxYear - targetMinYear);
-    state.scale = targetScale;
-    state.scale = targetScale;
-
-    const viewportCenterX = stickyWidth + viewportWidth / 2;
-    state.offsetX = viewportCenterX - baseScale(startYear) * state.scale;
-
-    clampOffsetX();
-    render();
+  if (!query || outOfRange) {
+    timelineYearInput.setAttribute("aria-invalid", "true");
+    if (timelineYearError) {
+      timelineYearError.textContent = query
+        ? `Use years between ${minYear} and ${maxYear}`
+        : "Type a year (1897) or a range (1890–1920)";
+    }
     return;
   }
 
-  if (startYear === null || endYear === null) return;
+  timelineYearInput.removeAttribute("aria-invalid");
+  if (timelineYearError) timelineYearError.textContent = "";
 
-  const rangeStart = Math.min(startYear, endYear);
-  const rangeEnd = Math.max(startYear, endYear);
+  if (query.end === null) {
+    centerTimelineOnYear(query.start);
+  } else {
+    fitTimelineToYearRange(query.start, query.end + 0.99);
+  }
 
-  const viewportWidth = width - stickyWidth;
-  const sidePadding = 60;
-  const spanBaseWidth = Math.max(0.000001, baseScale(rangeEnd) - baseScale(rangeStart));
+  syncEventHeightForSemanticZoom();
+  render();
+}
 
-  const targetScale =
-    (viewportWidth - sidePadding * 2) / spanBaseWidth;
+function zoomByStep(direction) {
+  const viewportCenterX = stickyWidth + (width - stickyWidth) / 2;
+  zoomAround(viewportCenterX, direction > 0 ? -280 : 280);
+  syncEventHeightForSemanticZoom();
+  clampScrollY(resizeOverscrollMargin());
+  render();
+}
 
-  state.scale = targetScale;
+function visibleYearRange() {
+  const toYear = (x) => baseScale.invert((x - state.offsetX) / state.scale);
+  return {
+    start: Math.max(minYear, toYear(stickyWidth)),
+    end: Math.min(maxYear, toYear(width))
+  };
+}
 
-  const rangeCenterYear = (rangeStart + rangeEnd) / 2;
-  const viewportCenterX = stickyWidth + viewportWidth / 2;
+function updateZoomControls() {
+  if (zoomRangeLabel) {
+    const { start, end } = visibleYearRange();
+    zoomRangeLabel.textContent = `${Math.round(start)}–${Math.floor(end)}`;
+  }
 
-  state.offsetX = viewportCenterX - baseScale(rangeCenterYear) * state.scale;
+  if (zoomInBtn) zoomInBtn.disabled = state.scale >= maxAllowedScale() - 1e-6;
+  if (zoomOutBtn) zoomOutBtn.disabled = state.scale <= minAllowedScale() + 1e-6;
+}
 
-  clampOffsetX();
+// Fit the timeline to the events currently on screen (or the open object)
+function fitView() {
+  const events =
+    state.viewMode === "objectDetail" && state.detailObjectId !== null
+      ? allEvents.filter(event => event.objectId === state.detailObjectId)
+      : allEvents.filter(event => activeFilterTotal() === 0 || eventMatchesFilters(event));
+
+  const start = d3.min(events, event => event.eventStart);
+  const end = d3.max(events, event => event.eventEnd);
+
+  state.scrollY = 0;
+
+  if (start == null || end == null) {
+    resetView();
+    return;
+  }
+
+  const padding = Math.max(2, (end - start) * 0.04);
+  fitTimelineToYearRange(start - padding, end + padding);
+  syncEventHeightForSemanticZoom();
+  clampScrollY(resizeOverscrollMargin());
   render();
 }
 
 function updateObjectDetailToolbar() {
-  if (!objectDetailBackBtn || !objectDetailStatus) return;
-
   const inDetailMode = state.viewMode === "objectDetail" && state.detailObjectId !== null;
 
-  document.getElementById("main-toolbar")?.classList.toggle("is-detail", inDetailMode);
+  mainToolbar?.classList.toggle("is-detail", inDetailMode);
 
-  if (inDetailMode) {
-    objectDetailBackBtn.style.display = "";
-    objectDetailStatus.style.display = "";
-    objectDetailStatus.textContent = `Viewing object ${state.detailObjectId}`;
-  } else {
-    objectDetailBackBtn.style.display = "none";
-    objectDetailStatus.style.display = "none";
-    objectDetailStatus.textContent = "";
-  }
+  if (toolbarTitleBlock) toolbarTitleBlock.hidden = inDetailMode;
+  if (objectDetailCrumb) objectDetailCrumb.hidden = !inDetailMode;
+  if (filtersToggleBtn) filtersToggleBtn.hidden = inDetailMode;
+  if (toolbarFiltersRow) toolbarFiltersRow.hidden = inDetailMode || activeFilterTotal() === 0;
 
-  if (filtersToggleBtn) {
-    filtersToggleBtn.style.display = inDetailMode ? "none" : "";
-  }
+  if (!inDetailMode) return;
 
-  if (resetFiltersBtn) {
-    resetFiltersBtn.style.display = inDetailMode ? "none" : "";
+  const summary = objectSummaries.find(object => object.objectId === state.detailObjectId);
+  if (objectDetailStatus) objectDetailStatus.textContent = `Object ${state.detailObjectId}`;
+  if (objectDetailMeta) {
+    objectDetailMeta.textContent = summary
+      ? [summary.institution, `${summary.eventCount} events`].filter(Boolean).join(" · ")
+      : "";
   }
 }
 
@@ -1180,7 +1204,11 @@ function getObjectSearchMatches(query) {
   const normalized = query.trim().toLowerCase();
 
   return objectSummaries
-    .filter(object => !normalized || String(object.objectId).toLowerCase().includes(normalized))
+    .filter(object =>
+      !normalized ||
+      String(object.objectId).toLowerCase().includes(normalized) ||
+      String(object.institution || "").toLowerCase().includes(normalized)
+    )
     .sort((a, b) => String(a.objectId).localeCompare(String(b.objectId), undefined, { numeric: true }));
 }
 
@@ -1290,27 +1318,91 @@ function activeFilterTotal() {
   );
 }
 
+const FILTER_GROUP_LABELS = [
+  ["category", "Category"],
+  ["institution", "Institution"],
+  ["edo", "EDO"],
+  ["actor", "Actor"],
+  ["cityStart", "Start city"],
+  ["cityEnd", "End city"]
+];
+
+function refreshAllFilterLists() {
+  buildFilterList("list-category", filterOptions.category, "category", "search-category", true);
+  buildFilterList("list-institution", filterOptions.institution, "institution", "search-institution");
+  buildFilterList("list-edo", filterOptions.edo, "edo", "search-edo");
+  buildFilterList("list-actor", filterOptions.actor, "actor", "search-actor");
+  buildFilterList("list-city-start", filterOptions.cityStart, "cityStart", "search-city-start");
+  buildFilterList("list-city-end", filterOptions.cityEnd, "cityEnd", "search-city-end");
+}
+
+function removeFilterValue(key, value) {
+  filtersState[key].delete(value);
+  updateFilterSummary();
+  updateAllFilterFieldUi();
+  refreshAllFilterLists();
+  render();
+}
+
+function setFilterMode(mode) {
+  filtersState.mode = mode;
+
+  const radio = document.querySelector(`input[name="filter-mode"][value="${mode}"]`);
+  if (radio) radio.checked = true;
+
+  updateFilterModeButtons();
+  render();
+}
+
+function updateFilterModeButtons() {
+  document.querySelectorAll(".toolbar-segmented [data-mode]").forEach(button => {
+    button.setAttribute("aria-checked", String(button.dataset.mode === filtersState.mode));
+  });
+}
+
 function updateFilterSummary() {
-  if (activeFilterCount) activeFilterCount.textContent = String(activeFilterTotal());
+  const total = activeFilterTotal();
+
+  if (activeFilterCount) {
+    activeFilterCount.textContent = String(total);
+    activeFilterCount.hidden = total === 0;
+  }
+
+  updateFilterModeButtons();
+  updateObjectDetailToolbar();
+
   if (!filterSummary) return;
 
   filterSummary.innerHTML = "";
 
-  const groups = [
-    ["Category", filtersState.category],
-    ["Institution", filtersState.institution],
-    ["EDO", filtersState.edo],
-    ["Actor", filtersState.actor],
-    ["Start city", filtersState.cityStart],
-    ["End city", filtersState.cityEnd]
-  ];
+  FILTER_GROUP_LABELS.forEach(([key, label]) => {
+    filtersState[key].forEach(value => {
+      const chip = document.createElement("span");
+      chip.className = "filter-chip";
 
-  groups.forEach(([label, set]) => {
-    if (set.size === 0) return;
-    const chip = document.createElement("span");
-    chip.className = "filter-chip";
-    chip.textContent = `${label}: ${Array.from(set).slice(0, 2).join(", ")}${set.size > 2 ? "…" : ""}`;
-    filterSummary.appendChild(chip);
+      if (key === "category") {
+        const dot = document.createElement("span");
+        dot.className = "filter-chip-dot";
+        dot.style.background = CATEGORY_MAP[value] || "#AEAEAE";
+        chip.appendChild(dot);
+      }
+
+      const text = document.createElement("span");
+      text.className = "filter-chip-label";
+      text.textContent = `${label}: ${value}`;
+      text.title = `${label}: ${value}`;
+      chip.appendChild(text);
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "filter-chip-remove";
+      remove.setAttribute("aria-label", `Remove filter ${label}: ${value}`);
+      remove.textContent = "×";
+      remove.addEventListener("click", () => removeFilterValue(key, value));
+      chip.appendChild(remove);
+
+      filterSummary.appendChild(chip);
+    });
   });
 }
 
@@ -1423,55 +1515,37 @@ function setupFilterUI() {
 
   // MODE SWITCH
   document.querySelectorAll('input[name="filter-mode"]').forEach((input)=>{
-    input.onchange=()=>{
-      filtersState.mode=input.value;
-      render();
-    };
+    input.onchange=()=>setFilterMode(input.value);
+  });
+
+  document.querySelectorAll(".toolbar-segmented [data-mode]").forEach((button)=>{
+    button.onclick=()=>setFilterMode(button.dataset.mode);
   });
 
   // PANEL BUTTONS
   if(filtersToggleBtn) filtersToggleBtn.onclick=()=>openFiltersPanel(true);
   if(filtersCloseBtn) filtersCloseBtn.onclick=()=>openFiltersPanel(false);
   if(filtersOverlay) filtersOverlay.onclick=()=>openFiltersPanel(false);
-  if (resetViewBtn) resetViewBtn.addEventListener("click", () => resetView());
+  if (resetViewBtn) resetViewBtn.onclick = () => fitView();
+  if (zoomInBtn) zoomInBtn.onclick = () => zoomByStep(1);
+  if (zoomOutBtn) zoomOutBtn.onclick = () => zoomByStep(-1);
 
-  // TIME SELECT DATE SELECT
-  if (timelineDateRangeToggleBtn && !timelineDateRangeToggleBtn._bound) {
-    timelineDateRangeToggleBtn.addEventListener("click", () => {
-      state.isDateRangeMode = !state.isDateRangeMode;
-      updateTimelineDateModeUI();
+  // GO TO YEAR
+  if (timelineYearForm && !timelineYearForm._bound) {
+    timelineYearForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      applyToolbarYearNavigation();
     });
 
-    timelineDateRangeToggleBtn._bound = true;
-  }
+    const clearYearError = () => {
+      timelineYearInput.removeAttribute("aria-invalid");
+      if (timelineYearError) timelineYearError.textContent = "";
+    };
 
-  if (timelineDateApplyBtn && !timelineDateApplyBtn._bound) {
-    timelineDateApplyBtn.addEventListener("click", () => {
-      console.log("GO button clicked");
-      applyToolbarDateNavigation();
-    });
+    timelineYearInput?.addEventListener("input", clearYearError);
+    timelineYearInput?.addEventListener("blur", clearYearError);
 
-    timelineDateApplyBtn._bound = true;
-  }
-
-  if (timelineDateStartInput && !timelineDateStartInput._bound) {
-    timelineDateStartInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        applyToolbarDateNavigation();
-      }
-    });
-
-    timelineDateStartInput._bound = true;
-  }
-
-  if (timelineDateEndInput && !timelineDateEndInput._bound) {
-    timelineDateEndInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        applyToolbarDateNavigation();
-      }
-    });
-
-    timelineDateEndInput._bound = true;
+    timelineYearForm._bound = true;
   }
 
   if (objectDetailBackBtn) {
@@ -1509,13 +1583,7 @@ function setupFilterUI() {
 
       updateFilterSummary();
       updateAllFilterFieldUi();
-
-      buildFilterList("list-category",filterOptions.category,"category","search-category",true);
-      buildFilterList("list-institution",filterOptions.institution,"institution","search-institution");
-      buildFilterList("list-edo",filterOptions.edo,"edo","search-edo");
-      buildFilterList("list-actor",filterOptions.actor,"actor","search-actor");
-      buildFilterList("list-city-start",filterOptions.cityStart,"cityStart","search-city-start");
-      buildFilterList("list-city-end",filterOptions.cityEnd,"cityEnd","search-city-end");
+      refreshAllFilterLists();
 
       render();
 
@@ -1563,14 +1631,26 @@ function setupFilterUI() {
     objectSearchForm._bound = true;
   }
 
-  // NAV TOOLTIP
-  if(navHelpBtn){
+  // HELP AND LEGEND POPOVERS
+  bindToolbarPopover(navHelpBtn, navHelpTooltip);
+  bindToolbarPopover(legendBtn, legendPopover);
 
-    navHelpBtn.onmouseenter=showNavHelpTooltip;
-    navHelpBtn.onmouseleave=hideNavHelpTooltip;
-    navHelpBtn.onfocus=showNavHelpTooltip;
-    navHelpBtn.onblur=hideNavHelpTooltip;
+  if (!setupFilterUI._toolbarKeysBound) {
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeToolbarPopovers();
 
+      const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "");
+      if (event.key === "/" && !typing && !event.ctrlKey && !event.metaKey) {
+        event.preventDefault();
+        objectSearchInput?.focus();
+      }
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!event.target.closest(".toolbar-popover-anchor")) closeToolbarPopovers();
+    });
+
+    setupFilterUI._toolbarKeysBound = true;
   }
 
   updateFilterSummary();
@@ -1645,10 +1725,6 @@ function setupFilterUI() {
     setupFilterUI._eventCardOutsideBound = true;
   }
 
-  if (!setupFilterUI._timelineDateInitDone) {
-    updateTimelineDateModeUI();
-    setupFilterUI._timelineDateInitDone = true;
-  }
 
 }
 
@@ -3048,6 +3124,7 @@ function render() {
   updateFiltersResultsSummary();
   updateObjectDetailToolbar();
   updateToolbarResultsSummary();
+  updateZoomControls();
 
   if (semanticZoomIndicator) {
     semanticZoomIndicator.textContent = `Zoom level: ${getCurrentSemanticZoomLevelForView()}`;

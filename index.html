@@ -10,103 +10,126 @@
 <body>
   <div class="app">
     <div id="main-toolbar" class="toolbar">
-      <div class="toolbar-left">
-        <div class="toolbar-title-block">
+      <div class="toolbar-main">
+        <div id="toolbar-title-block" class="toolbar-title-block">
           <h1>Provenance Visualizer</h1>
           <div id="toolbar-results-summary" class="toolbar-results-summary"></div>
         </div>
 
-        <button id="object-detail-back" class="toolbar-btn secondary" type="button" style="display:none;">
-          Back to comparison
+        <nav id="object-detail-crumb" class="toolbar-crumb" aria-label="Breadcrumb" hidden>
+          <button id="object-detail-back" class="toolbar-crumb-link" type="button">← All objects</button>
+          <span class="toolbar-crumb-sep" aria-hidden="true">/</span>
+          <span id="object-detail-status" class="toolbar-crumb-current"></span>
+          <span id="object-detail-meta" class="toolbar-crumb-meta"></span>
+        </nav>
+
+        <form id="object-search-form" class="toolbar-search" autocomplete="off" role="search">
+          <div id="object-search-combobox" class="object-search-combobox">
+            <svg class="toolbar-search-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <input
+              id="object-search-input"
+              class="toolbar-input toolbar-search-input"
+              type="text"
+              role="combobox"
+              aria-expanded="false"
+              aria-controls="object-search-options"
+              aria-autocomplete="list"
+              placeholder="Search object or museum…"
+              aria-label="Search object ID or museum"
+            />
+            <kbd class="toolbar-kbd" aria-hidden="true">/</kbd>
+            <div id="object-search-options" class="object-search-popup" role="listbox"></div>
+          </div>
+        </form>
+
+        <button id="filters-toggle" class="toolbar-btn" type="button">
+          Filters
+          <span id="active-filter-count" class="toolbar-badge" hidden>0</span>
         </button>
 
-        <div id="object-detail-status" class="filter-summary" style="display:none;"></div>
+        <div class="toolbar-spacer"></div>
 
-        <div class="toolbar-controls-row">
+        <form id="timeline-year-form" class="toolbar-year" autocomplete="off">
+          <input
+            id="timeline-year-input"
+            class="toolbar-input toolbar-year-input"
+            type="text"
+            inputmode="numeric"
+            placeholder="Go to year, e.g. 1897"
+            title="Type a year (1897) or a range (1890–1920), then press Enter"
+            aria-label="Go to a year or a range of years"
+            aria-describedby="timeline-year-error"
+          />
+          <span id="timeline-year-error" class="toolbar-field-error" role="status"></span>
+        </form>
 
-          <div class="toolbar-control-group toolbar-control-group-filters">
-            <button id="filters-toggle" class="toolbar-btn" type="button">
-              Filters
-              <span id="active-filter-count" class="toolbar-badge">0</span>
-            </button>
+        <span class="toolbar-sep" aria-hidden="true"></span>
 
-            <button id="reset-filters" class="toolbar-btn secondary" type="button">
-              Clear filters
-            </button>
+        <div class="toolbar-zoom" role="group" aria-label="Zoom">
+          <button id="zoom-out" class="toolbar-zoom-btn" type="button" aria-label="Zoom out" title="Zoom out">−</button>
+          <span id="zoom-range" class="toolbar-zoom-range" title="Visible years"></span>
+          <button id="zoom-in" class="toolbar-zoom-btn" type="button" aria-label="Zoom in" title="Zoom in">+</button>
+        </div>
+        <button id="reset-view" class="toolbar-btn secondary" type="button" title="Fit all events in view">
+          Fit
+        </button>
+
+        <span class="toolbar-sep" aria-hidden="true"></span>
+
+        <div class="toolbar-popover-anchor">
+          <button id="legend-btn" class="toolbar-btn secondary" type="button" aria-expanded="false" aria-controls="legend-popover">
+            Legend
+          </button>
+          <div id="legend-popover" class="toolbar-popover toolbar-popover-legend" hidden>
+            <div class="popover-title">Event categories</div>
+            <ul class="legend-list">
+              <li><span class="legend-swatch" style="background:#FF3737"></span><span><b>Loss</b> looted, field-collected, confiscated</span></li>
+              <li><span class="legend-swatch" style="background:#62D221"></span><span><b>Restitution</b></span></li>
+              <li><span class="legend-swatch" style="background:#FFAC3F"></span><span><b>Change of owner</b> purchase, sale, auction, gift, bequest…</span></li>
+              <li><span class="legend-swatch" style="background:#5D9BFF"></span><span><b>Custody</b> loan, exhibition, collection, transfer…</span></li>
+              <li><span class="legend-swatch" style="background:#B95DFF"></span><span><b>Origin and use</b> production, sacred use, ceremony</span></li>
+              <li><span class="legend-swatch" style="background:#AEAEAE"></span><span><b>Unknown</b></span></li>
+            </ul>
+            <div class="popover-title">Shapes</div>
+            <ul class="legend-list">
+              <li><span class="legend-shape legend-diamond"></span><span>Exact date</span></li>
+              <li><span class="legend-shape legend-square"></span><span>Date known only as a period</span></li>
+              <li><span class="legend-shape legend-open"></span><span>Open start or end</span></li>
+            </ul>
+            <div class="popover-title">Date symbols</div>
+            <ul class="legend-list legend-symbols">
+              <li><span class="legend-symbol">~</span><span>Approximate</span></li>
+              <li><span class="legend-symbol">?</span><span>Uncertain</span></li>
+              <li><span class="legend-symbol">%</span><span>Approximate and uncertain</span></li>
+            </ul>
           </div>
-
-          <div class="toolbar-control-group toolbar-control-group-view">
-            <button id="reset-view" class="toolbar-btn secondary" type="button">
-              Reset view
-            </button>
-
-            <button id="nav-help-btn" class="icon-btn help-btn" type="button" aria-label="Navigation help">?</button>
-          </div>
-
-          <div class="toolbar-control-group toolbar-control-group-view toolbar-control-group-time">
-            <div class="toolbar-date-nav">
-              <input
-                id="timeline-date-start"
-                class="toolbar-date-input"
-                type="date"
-                placeholder="YYYY-MM-DD"
-                aria-label="Go to date or interval start date"
-              />
-
-              <button
-                id="timeline-date-range-toggle"
-                class="toolbar-date-toggle"
-                type="button"
-                aria-expanded="false"
-                aria-label="Switch to date interval mode"
-                title="Add end date"
-              >
-                + End
-              </button>
-
-              <input
-                id="timeline-date-end"
-                class="toolbar-date-input hidden"
-                type="date"
-                placeholder="YYYY-MM-DD"
-                aria-label="Interval end date"
-              />
-
-              <button
-                id="timeline-date-apply"
-                class="toolbar-btn secondary"
-                type="button"
-              >
-                Go
-              </button>
-            </div>
-          </div>
-
-          <div class="toolbar-control-group toolbar-control-group-view toolbar-control-group-search">
-            <form id="object-search-form" class="toolbar-date-nav" autocomplete="off">
-              <div id="object-search-combobox" class="object-search-combobox">
-                <input
-                  id="object-search-input"
-                  class="toolbar-date-input toolbar-search-input"
-                  type="text"
-                  role="combobox"
-                  aria-expanded="false"
-                  aria-controls="object-search-options"
-                  aria-autocomplete="list"
-                  placeholder="Search object ID…"
-                  aria-label="Search object ID"
-                />
-                <div id="object-search-options" class="object-search-popup" role="listbox"></div>
-              </div>
-              <button id="object-search-apply" class="toolbar-btn secondary" type="submit">
-                Open
-              </button>
-            </form>
-          </div>
-
         </div>
 
+        <div class="toolbar-popover-anchor">
+          <button id="nav-help-btn" class="icon-btn help-btn" type="button" aria-label="Navigation help" aria-expanded="false" aria-controls="nav-help-tooltip">?</button>
+          <div id="nav-help-tooltip" class="toolbar-popover toolbar-popover-help" hidden>
+            <div class="popover-title">Navigate the timeline</div>
+            <ul class="help-list">
+              <li><span>Scroll</span><span>Move through time and objects</span></li>
+              <li><span><kbd>Ctrl</kbd> + scroll</span><span>Zoom</span></li>
+              <li><span><kbd>Shift</kbd> + scroll</span><span>Resize matched events</span></li>
+              <li><span><kbd>/</kbd></span><span>Search objects</span></li>
+              <li><span><kbd>Esc</kbd></span><span>Close this panel</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div id="toolbar-filters-row" class="toolbar-filters-row" hidden>
         <div id="filter-summary" class="filter-summary"></div>
+        <button id="reset-filters" class="toolbar-link" type="button">Clear all</button>
+        <div class="toolbar-spacer"></div>
+        <span class="toolbar-label" id="filter-mode-label">Other events</span>
+        <div class="toolbar-segmented" role="radiogroup" aria-labelledby="filter-mode-label">
+          <button type="button" role="radio" data-mode="focus" title="Hide events that don't match">Hide</button>
+          <button type="button" role="radio" data-mode="collapsed" title="Show non-matching events as thin lines">Collapse</button>
+          <button type="button" role="radio" data-mode="regular" title="Show non-matching events faded">Show faded</button>
+        </div>
       </div>
     </div>
 
@@ -348,10 +371,7 @@
 
   <div id="filters-overlay" class="filters-overlay"></div>
 
-  <div id="nav-help-tooltip" class="toolbar-tooltip">
-    <div>Scroll = horizontal or vertical navigation</div>
-    <div>Scroll vertical + Ctrl = zoom</div>
-    <div>Scroll vertical + Shift = resize matched events</div>
+
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>

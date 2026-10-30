@@ -179,22 +179,32 @@ console.log("event card refs", {
 });
 
 const filtersToggleBtn = document.getElementById("filters-toggle");
-const filtersCloseBtn = document.getElementById("filters-close");
-const filtersPanel = document.getElementById("filters-panel");
-const filtersOverlay = document.getElementById("filters-overlay");
 const resetFiltersBtn = document.getElementById("reset-filters");
 const activeFilterCount = document.getElementById("active-filter-count");
 const filterSummary = document.getElementById("filter-summary");
-const semanticZoomIndicator = document.getElementById("semantic-zoom-indicator");
 const navHelpBtn = document.getElementById("nav-help-btn");
-const timelineDateStartInput = document.getElementById("timeline-date-start");
-const timelineDateEndInput = document.getElementById("timeline-date-end");
-const timelineDateRangeToggleBtn = document.getElementById("timeline-date-range-toggle");
-const timelineDateApplyBtn = document.getElementById("timeline-date-apply");
+const timelineYearForm = document.getElementById("timeline-year-form");
+const timelineYearInput = document.getElementById("timeline-year-input");
+const timelineYearError = document.getElementById("timeline-year-error");
+const zoomInBtn = document.getElementById("zoom-in");
+const zoomOutBtn = document.getElementById("zoom-out");
+const rowsShorterBtn = document.getElementById("rows-shorter");
+const rowsTallerBtn = document.getElementById("rows-taller");
+const zoomRangeLabel = document.getElementById("zoom-range");
+const legendBtn = document.getElementById("legend-btn");
+const legendPopover = document.getElementById("legend-popover");
+const toolbarTitleBlock = document.getElementById("toolbar-title-block");
+const toolbarFiltersRow = document.getElementById("toolbar-filters-row");
+const objectDetailCrumb = document.getElementById("object-detail-crumb");
+const objectDetailMeta = document.getElementById("object-detail-meta");
 const mainToolbar = document.getElementById("main-toolbar");
 const resetViewBtn = document.getElementById("reset-view");
 const navHelpTooltip = document.getElementById("nav-help-tooltip");
 const objectDetailBackBtn = document.getElementById("object-detail-back");
+const objectSearchForm = document.getElementById("object-search-form");
+const objectSearchInput = document.getElementById("object-search-input");
+const objectSearchCombobox = document.getElementById("object-search-combobox");
+const objectSearchOptions = document.getElementById("object-search-options");
 const objectDetailStatus = document.getElementById("object-detail-status");
 
 const stickyWidth = 240;
@@ -206,21 +216,32 @@ const OVERVIEW_DIAMOND_SIZE = 16;
 const OVERVIEW_LONG_SEGMENT_THRESHOLD = 18;
 const OVERVIEW_DOUBLE_DIAMOND_MIN_LINE_BODY_LENGTH = 10;
 const OVERVIEW_FIXED_EVENT_HEIGHT = 10;
+// Outside Overview, short events are drawn at least this wide so they stay visible and clickable
+const MIN_BAR_WIDTH_PX = 6;
 const OVERVIEW_FIXED_EVENT_SCALE_Y = OVERVIEW_FIXED_EVENT_HEIGHT / eventHeight;
 
+// Three alpha levels for every event mark, plus one for filtered-out events.
+// Filtered-out events fade as a whole group, so the levels are never multiplied.
+const ALPHA = {
+  solid: 1,     // exact dates, overview lines
+  body: 0.55,   // known periods
+  edge: 0.25,   // uncertain start/end of a period, open ends
+  filteredOut: 0.3
+};
+
 const OPACITY = {
-  structureStart: 0.2,
-  structureMid: 0.4,
-  structureEnd: 0.2,
+  structureStart: ALPHA.edge,
+  structureMid: ALPHA.body,
+  structureEnd: ALPHA.edge,
 
-  overviewBar: 0.88,
-  overviewSquare: 0.3,
-  overviewDiamond: 0.4,
-  overviewLine: 0.88,
+  overviewBar: ALPHA.solid,
+  overviewSquare: ALPHA.body,
+  overviewDiamond: ALPHA.solid,
+  overviewLine: ALPHA.solid,
 
-  preciseDiamond: 0.4,
+  preciseDiamond: ALPHA.solid,
 
-  filteredOut: 0.5
+  filteredOut: ALPHA.filteredOut
 };
 
 const SELECTION_DARK = "rgba(15,23,42,0.65)";
@@ -234,10 +255,9 @@ const SELECTION_BOX_RADIUS = 5;
 const SELECTION_BOX_PAD_X = 6;
 const SELECTION_BOX_PAD_Y = 6;
 
-const unmatchedCollapsedEventHeight = 5;
 const labelGap = 12;
-const labelGapEndDiamond = 18;
-const labelGapOpenEnd = 40;
+// Length of the dotted tail drawn for an open start or end
+const OPEN_END_LINE_LENGTH = 40;
 const OBJECT_VERTICAL_GAP = 20;
 const minScale = 0.35;
 const minEventHeight = 10;
@@ -246,24 +266,19 @@ const minEventScaleY = minEventHeight / eventHeight;
 const maxEventScaleY = maxEventHeight / eventHeight;
 const minYear = 1000;
 const maxYear = 2800;
-const patternZoomThreshold = 1.9;
 const patternMinEventHeight = 9;
-const tooltipZoomThreshold = 1.15;
 const specialYear = 1897;
 const objectMetaMinBottomPadding = 10;
 const exactDateWidthPx = 5;
 const exactDateExtraHeightPx = 6;
-const exactDateFillOpacity = 0.3;
+const exactDateFillOpacity = ALPHA.edge;
 const exactDateStrokeWidth = 1;
-const regularMidOpacity = 0.8;
+const regularMidOpacity = ALPHA.body;
 const filteredOutOpacity = OPACITY.filteredOut;
-const singleSectionOpacityFar = 0.8;
-const singleSectionOpacityNear = 0.3;
-const singleSectionOpacityZoomFar = 0.55;
-const singleSectionOpacityZoomNear = 1.2;
 const objectGapExtra = 14;
 const targetMaxVisibleYears = 5;
-const targetMinVisibleYears = 2000;
+// Most zoomed out = the whole axis, so the zoom-out button disables at the real limit
+const targetMinVisibleYears = maxYear - minYear;
 
 let width = wrap.clientWidth;
 let height = wrap.clientHeight;
@@ -280,7 +295,7 @@ const filterOptions = {
 };
 
 const filtersState = {
-  mode: "focus",
+  mode: "regular",          // "regular" (non-matching events faded) | "focus" (hidden)
   category: new Set(),
   institution: new Set(),
   edo: new Set(),
@@ -318,28 +333,6 @@ function formatFilterLabel(value){
 
 }
 
-function filterSelectionSummary(key){
-
-  const selected=Array.from(filtersState[key]);
-
-  if(selected.length===0){
-    return "Search and select...";
-  }
-
-  const formatted=selected.map(formatFilterLabel);
-
-  if(formatted.length===1){
-    return formatted[0];
-  }
-
-  if(formatted.length===2){
-    return formatted[0]+", "+formatted[1];
-  }
-
-  return formatted[0]+", "+formatted[1]+" +"+(formatted.length-2);
-
-}
-
 function updateFilterFieldUi(key){
 
   const ui=filterUiMap[key];
@@ -362,9 +355,7 @@ function updateFilterFieldUi(key){
 
   }
 
-  if(input && !input.value){
-    input.placeholder=filterSelectionSummary(key);
-  }
+  count?.closest(".filter-dd-btn")?.classList.toggle("is-active", selectedCount>0);
 
   if(clear){
     if(selectedCount>0){
@@ -404,6 +395,11 @@ plotClip.append("rect");
 const labelClip = defs.append("clipPath").attr("id", "label-clip");
 labelClip.append("rect");
 
+// Year labels stop at the object column divider
+const AXIS_LABEL_HALF_WIDTH = 16;
+const axisClip = defs.append("clipPath").attr("id", "axis-clip");
+axisClip.append("rect");
+
 defs.append("pattern")
   .attr("id", "pattern-horizontal")
   .attr("patternUnits", "userSpaceOnUse")
@@ -433,18 +429,19 @@ diagonalPattern.append("path")
   .attr("stroke-width", 1.5)
   .attr("stroke-linecap", "square");
 
+// Flattened cross-hatch: wide diamonds (about 2:1), lines closer to horizontal
 const diamondPattern = defs.append("pattern")
   .attr("id", "pattern-diamond")
   .attr("patternUnits", "userSpaceOnUse")
   .attr("patternContentUnits", "userSpaceOnUse")
-  .attr("width", 14)
-  .attr("height", 14);
+  .attr("width", 16)
+  .attr("height", 9);
 
 diamondPattern.append("path")
-  .attr("d", "M 7 1 L 13 7 L 7 13 L 1 7 Z")
+  .attr("d", "M -16 9 L 16 -9 M 0 9 L 16 0 M -16 18 L 16 0 M 0 0 L 16 9 M -16 -9 L 16 9 M 0 -9 L 32 9")
   .attr("fill", "none")
   .attr("stroke", "white")
-  .attr("stroke-width", 1.2);
+  .attr("stroke-width", 1.6);
 
 const state = {
   scale: 1,
@@ -458,20 +455,19 @@ const state = {
 
   selectedEventId: null,
   selectedEventData: null,
-  isDateRangeMode: false,
 };
 
 let dragState = null;
-let storedDetailEventScaleY = 1;
+// Default row height outside Overview: 15 px events, 27 px between rows
+const DEFAULT_EVENT_SCALE_Y = 15 / eventHeight;
+let storedDetailEventScaleY = DEFAULT_EVENT_SCALE_Y;
 let scrollAnimationFrame = null;
-let rowsCacheForZoomIndicator = [];
 
 const tooltipEl = document.createElement("div");
 tooltipEl.className = "timeline-tooltip";
 document.body.appendChild(tooltipEl);
 
 function showTooltip(html, clientX, clientY) {
-  if (state.scale < tooltipZoomThreshold) return;
   tooltipEl.innerHTML = html;
   tooltipEl.classList.add("visible");
 
@@ -497,22 +493,29 @@ function tooltipHTMLForEvent(event) {
   `;
 }
 
-function positionNavHelpTooltip() {
-  if (!navHelpBtn || !navHelpTooltip) return;
-  const rect = navHelpBtn.getBoundingClientRect();
-  navHelpTooltip.style.left = `${rect.left}px`;
-  navHelpTooltip.style.top = `${rect.bottom + 10}px`;
+const toolbarPopovers = [];
+
+function closeToolbarPopovers(except = null) {
+  toolbarPopovers.forEach(({ button, popover }) => {
+    if (popover === except) return;
+    popover.hidden = true;
+    button.setAttribute("aria-expanded", "false");
+  });
 }
 
-function showNavHelpTooltip() {
-  if (!navHelpTooltip) return;
-  positionNavHelpTooltip();
-  navHelpTooltip.classList.add("visible");
-}
+function bindToolbarPopover(button, popover) {
+  if (!button || !popover || button._popoverBound) return;
 
-function hideNavHelpTooltip() {
-  if (!navHelpTooltip) return;
-  navHelpTooltip.classList.remove("visible");
+  toolbarPopovers.push({ button, popover });
+
+  button.addEventListener("click", () => {
+    const willOpen = popover.hidden;
+    closeToolbarPopovers(popover);
+    popover.hidden = !willOpen;
+    button.setAttribute("aria-expanded", String(willOpen));
+  });
+
+  button._popoverBound = true;
 }
 
 function scaledEventHeight() {
@@ -524,22 +527,9 @@ function scaledMatchedRowHeight() {
   return scaledEventHeight() + fixedGap;
 }
 
-function rowHeightForScaleY(scaleY, matched) {
-  const scaledH = eventHeight * scaleY;
+function rowHeightForScaleY(scaleY) {
   const fixedGap = rowHeight - eventHeight;
-
-  if (filtersState.mode === "collapsed" && !matched) {
-    return unmatchedCollapsedEventHeight + fixedGap;
-  }
-
-  return scaledH + fixedGap;
-}
-
-function eventHeightForScaleY(scaleY, matched) {
-  if (filtersState.mode === "collapsed" && !matched) {
-    return unmatchedCollapsedEventHeight;
-  }
-  return eventHeight * scaleY;
+  return eventHeight * scaleY + fixedGap;
 }
 
 function contentHeightForScaleY(scaleY) {
@@ -561,7 +551,7 @@ function contentHeightForScaleY(scaleY) {
       cursorY += objectGapExtra / 2;
     }
 
-    cursorY += rowHeightForScaleY(scaleY, matched);
+    cursorY += rowHeightForScaleY(scaleY);
 
     if (isGroupEnd) {
       cursorY += objectGapExtra / 2;
@@ -569,17 +559,6 @@ function contentHeightForScaleY(scaleY) {
   }
 
   return cursorY;
-}
-
-function singleSectionOpacityForZoom() {
-  if (state.scale <= singleSectionOpacityZoomFar) return singleSectionOpacityFar;
-  if (state.scale >= singleSectionOpacityZoomNear) return singleSectionOpacityNear;
-
-  const t =
-    (state.scale - singleSectionOpacityZoomFar) /
-    (singleSectionOpacityZoomNear - singleSectionOpacityZoomFar);
-
-  return singleSectionOpacityFar + t * (singleSectionOpacityNear - singleSectionOpacityFar);
 }
 
 function buildSection(kind, startRaw, endRaw, opacity, pattern, uncertaintyCode = "") {
@@ -597,6 +576,30 @@ function buildSection(kind, startRaw, endRaw, opacity, pattern, uncertaintyCode 
     isExactDate: sameCalendarDay(startRaw, endRaw),
     uncertaintyCode
   };
+}
+
+// An uncertain start or end range can reach past the other end of the event
+// (e.g. "19XX/1969": the start range 1900–2000 runs past 1969). Clip the
+// ranges to each other and drop the middle section when nothing is left of it,
+// otherwise it is drawn backwards as a thin stray bar.
+function normalizeEventSections(sections) {
+  if (sections.length !== 3) return sections;
+
+  const [startSection, midSection, endSection] = sections;
+
+  if (startSection.end > endSection.start) {
+    startSection.end = Math.max(startSection.start, endSection.start);
+  }
+  if (endSection.start < startSection.end) {
+    endSection.start = Math.min(endSection.end, startSection.end);
+  }
+
+  midSection.start = startSection.end;
+  midSection.end = Math.max(midSection.end, midSection.start);
+
+  return midSection.end - midSection.start > 1e-6
+    ? sections
+    : [startSection, endSection];
 }
 
 function buildFilterOptions(rows) {
@@ -664,6 +667,39 @@ function countForFilterOption(key, value) {
   return 0;
 }
 
+// Events each value of one group would show, given the other groups' selections.
+// The group's own selection is ignored, since its values are alternatives (or).
+function facetCountsFor(key) {
+  const counts = new Map();
+  if (state.viewMode === "objectDetail") return counts;
+
+  const own = filtersState[key];
+  filtersState[key] = new Set();
+  const events = allEvents.filter(eventMatchesFilters);
+  filtersState[key] = own;
+
+  const valuesOf = {
+    category: (e) => [e.categoryKey],
+    institution: (e) => [e.institution],
+    edo: (e) => [e.edoDesignations],
+    actor: (e) => e.actors,
+    cityStart: (e) => [e.cityStart],
+    cityEnd: (e) => [e.cityEnd]
+  }[key];
+
+  events.forEach((event) => {
+    valuesOf(event).forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
+  });
+  return counts;
+}
+
+// Re-draw the other dropdowns' lists so their counts follow the current selection
+function refreshFilterListCounts(exceptKey) {
+  document.querySelectorAll(".filter-list").forEach((list) => {
+    if (list._filterKey !== exceptKey && list._renderList) list._renderList();
+  });
+}
+
 function buildFilterList(containerId, values, filterKey, searchInputId, showColor = false) {
   const container = document.getElementById(containerId);
   const searchInput = document.getElementById(searchInputId);
@@ -673,11 +709,21 @@ function buildFilterList(containerId, values, filterKey, searchInputId, showColo
     const q = normalizeDateString(searchInput.value).toLowerCase();
     container.innerHTML = "";
 
+    const counts = facetCountsFor(filterKey);
+    const countOf = (value) => counts.get(value) || 0;
+    const isAvailable = (value) => countOf(value) > 0 || filtersState[filterKey].has(value);
+
+    // Values that would leave nothing go to the bottom, faded and not selectable
     values
       .filter((value) => value.toLowerCase().includes(q))
+      .sort((a, b) => Number(isAvailable(b)) - Number(isAvailable(a)))
       .forEach((value) => {
         const row = document.createElement("label");
         row.className = "filter-option";
+        if (!isAvailable(value)) {
+          row.classList.add("is-unavailable");
+          row.title = "No events with this value match the other filters";
+        }
 
         row.addEventListener("mousedown", (event) => {
           event.stopPropagation();
@@ -689,6 +735,7 @@ function buildFilterList(containerId, values, filterKey, searchInputId, showColo
         const input = document.createElement("input");
         input.type = "checkbox";
         input.checked = filtersState[filterKey].has(value);
+        input.disabled = !isAvailable(value);
         input.addEventListener("change",()=>{
 
           if(input.checked){
@@ -699,8 +746,10 @@ function buildFilterList(containerId, values, filterKey, searchInputId, showColo
 
           updateFilterSummary();
           updateFilterFieldUi(filterKey);
+          refreshFilterListCounts(filterKey);
 
           render();
+          revealFirstFilterMatch();
 
         });
 
@@ -721,7 +770,7 @@ function buildFilterList(containerId, values, filterKey, searchInputId, showColo
 
         const count = document.createElement("span");
         count.className = "filter-option-count";
-        count.textContent = countForFilterOption(filterKey, value);
+        count.textContent = countOf(value);
 
         row.appendChild(left);
         row.appendChild(count);
@@ -729,14 +778,19 @@ function buildFilterList(containerId, values, filterKey, searchInputId, showColo
       });
   };
 
-  searchInput.addEventListener("input", renderList);
+  container._filterKey = filterKey;
+  container._renderList = renderList;
+  searchInput.oninput = renderList;
   renderList();
 }
 
-function openFiltersPanel(open) {
-  if (!filtersPanel || !filtersOverlay) return;
-  filtersPanel.classList.toggle("open", open);
-  filtersOverlay.classList.toggle("open", open);
+// The filter bar under the toolbar, opened from the Filters button
+let filtersBarOpen = false;
+
+function setFiltersBarOpen(open) {
+  filtersBarOpen = open;
+  if (!open) closeToolbarPopovers();
+  updateObjectDetailToolbar();
 }
 
 function updateToolbarResultsSummary() {
@@ -751,8 +805,28 @@ function updateToolbarResultsSummary() {
   const totalEvents = allEvents.length;
   const totalObjects = new Set(allEvents.map((event) => event.objectId)).size;
 
+  const ofTotal = (count, total) => (count === total ? `${total}` : `${count} of ${total}`);
+
+  // With filters on, count what matches rather than every row drawn
+  if (state.viewMode !== "objectDetail" && activeFilterTotal() > 0) {
+    // The result sits at the head of the filters line; the title keeps the dataset size
+    const { matchingObjectCount, matchingEventCount } = getFilterResultsCounts();
+    toolbarResultsSummary.textContent = `${totalObjects} objects · ${totalEvents} events`;
+
+    const lead = document.getElementById("filter-results-lead");
+    if (lead) {
+      lead.innerHTML = `<b></b> <span></span>`;
+      const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+      lead.querySelector("b").textContent = plural(matchingObjectCount, "object");
+      lead.querySelector("span").textContent = `· ${plural(matchingEventCount, "event")}, where`;
+    }
+
+    return;
+  }
+
+
   toolbarResultsSummary.textContent =
-    `${visibleObjects}/${totalObjects} objects · ${visibleEvents}/${totalEvents} events`;
+    `${ofTotal(visibleObjects, totalObjects)} objects · ${ofTotal(visibleEvents, totalEvents)} events`;
 }
 
 function resetView() {
@@ -765,134 +839,178 @@ function resetView() {
   state.offsetX = 0;
   state.scrollY = 0;
 
-  storedDetailEventScaleY = 1;
-  state.eventScaleY = isOverviewZoomLevel()
-    ? OVERVIEW_FIXED_EVENT_SCALE_Y
-    : storedDetailEventScaleY;
+  storedDetailEventScaleY = DEFAULT_EVENT_SCALE_Y;
+  state.eventScaleY = eventScaleYForZoom();
 
   clampOffsetX();
   clampScrollY(resizeOverscrollMargin());
   render();
 }
 
-function updateTimelineDateModeUI() {
-  if (!timelineDateEndInput || !timelineDateRangeToggleBtn) return;
+// Accepts "1897", "1890-1920", "1890–1920" or "1890 to 1920"
+function parseYearQuery(value) {
+  const match = String(value || "")
+    .trim()
+    .match(/^(-?\d{1,4})(?:\s*(?:-|–|—|to)\s*(-?\d{1,4}))?$/i);
 
-  const isRange = state.isDateRangeMode === true;
+  if (!match) return null;
 
-  timelineDateEndInput.classList.toggle("hidden", !isRange);
-  timelineDateRangeToggleBtn.setAttribute("aria-expanded", String(isRange));
-  timelineDateRangeToggleBtn.textContent = isRange ? "←" : "→";
-  timelineDateRangeToggleBtn.title = isRange ? "Use single date mode" : "Add end date";
+  const start = Number(match[1]);
+  const end = match[2] !== undefined ? Number(match[2]) : null;
+
+  if (end === null) return { start, end: null };
+  return { start: Math.min(start, end), end: Math.max(start, end) };
 }
 
-function parseDateInputToDecimalYear(value) {
-  if (!value) return null;
+function centerTimelineOnYear(year) {
+  const viewportWidth = width - stickyWidth;
+  const viewportCenterX = stickyWidth + viewportWidth / 2;
 
-  const parts = String(value).split("-");
-  if (parts.length !== 3) return null;
-
-  const year = Number(parts[0]);
-  const month = Number(parts[1]);
-  const day = Number(parts[2]);
-
-  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
-    return null;
-  }
-
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (Number.isNaN(date.getTime())) return null;
-
-  const startOfYear = Date.UTC(year, 0, 1);
-  const startOfNextYear = Date.UTC(year + 1, 0, 1);
-  const fraction = (date.getTime() - startOfYear) / (startOfNextYear - startOfYear);
-
-  return year + fraction;
+  state.offsetX = viewportCenterX - baseScale(year + 0.5) * state.scale;
+  clampOffsetX();
 }
 
-function applyToolbarDateNavigation() {
+function applyToolbarYearNavigation() {
+  if (!timelineYearInput) return;
 
-  console.log("applyToolbarDateNavigation start", {
-    startValue: timelineDateStartInput?.value,
-    endValue: timelineDateEndInput?.value,
-    isRangeMode: state.isDateRangeMode
-  });
+  const query = parseYearQuery(timelineYearInput.value);
+  const outOfRange = query && (query.start < minYear || (query.end ?? query.start) > maxYear);
 
-  if (!timelineDateStartInput) return;
-
-  const startValue = timelineDateStartInput.value;
-  const endValue = timelineDateEndInput ? timelineDateEndInput.value : "";
-
-  const startYear = parseDateInputToDecimalYear(startValue);
-  const endYear = parseDateInputToDecimalYear(endValue);
-  console.log("parsed years", { startYear, endYear });
-
-  const isRangeMode = state.isDateRangeMode === true;
-
-  if (!isRangeMode) {
-    if (startYear === null) return;
-
-    const viewportWidth = width - stickyWidth;
-    const currentSpanYears = (maxYear - minYear) / state.scale;
-    const targetMinYear = startYear - currentSpanYears / 2;
-    const targetMaxYear = startYear + currentSpanYears / 2;
-
-    const targetScale = (maxYear - minYear) / (targetMaxYear - targetMinYear);
-    state.scale = targetScale;
-    state.scale = targetScale;
-
-    const viewportCenterX = stickyWidth + viewportWidth / 2;
-    state.offsetX = viewportCenterX - baseScale(startYear) * state.scale;
-
-    clampOffsetX();
-    render();
+  if (!query || outOfRange) {
+    timelineYearInput.setAttribute("aria-invalid", "true");
+    if (timelineYearError) {
+      timelineYearError.textContent = query
+        ? `Use years between ${minYear} and ${maxYear}`
+        : "Type a year (1897) or a range (1890–1920)";
+    }
     return;
   }
 
-  if (startYear === null || endYear === null) return;
+  timelineYearInput.removeAttribute("aria-invalid");
+  if (timelineYearError) timelineYearError.textContent = "";
 
-  const rangeStart = Math.min(startYear, endYear);
-  const rangeEnd = Math.max(startYear, endYear);
+  if (query.end === null) {
+    centerTimelineOnYear(query.start);
+  } else {
+    fitTimelineToYearRange(query.start, query.end + 0.99);
+  }
 
-  const viewportWidth = width - stickyWidth;
-  const sidePadding = 60;
-  const spanBaseWidth = Math.max(0.000001, baseScale(rangeEnd) - baseScale(rangeStart));
+  syncEventHeightForSemanticZoom();
+  render();
+}
 
-  const targetScale =
-    (viewportWidth - sidePadding * 2) / spanBaseWidth;
+function zoomByStep(direction) {
+  const viewportCenterX = stickyWidth + (width - stickyWidth) / 2;
+  zoomAround(viewportCenterX, direction > 0 ? -280 : 280);
+  syncEventHeightForSemanticZoom();
+  clampScrollY(resizeOverscrollMargin());
+  render();
+}
 
-  state.scale = targetScale;
+// Row height: steps through the allowed event heights, anchored on the viewport centre
+const ROW_HEIGHT_STEP_SCALE_Y = 5 / eventHeight;
 
-  const rangeCenterYear = (rangeStart + rangeEnd) / 2;
-  const viewportCenterX = stickyWidth + viewportWidth / 2;
+// Sets the chosen row height; while rows are still growing the drawn height follows it
+function setRowScaleY(nextScaleY, pointerOffsetY = (height - axisHeight) / 2) {
+  if (isOverviewZoomLevel()) return;
 
-  state.offsetX = viewportCenterX - baseScale(rangeCenterYear) * state.scale;
+  const anchorRatio = verticalAnchorRatio(state.scrollY, pointerOffsetY, state.eventScaleY);
+  storedDetailEventScaleY = clamp(nextScaleY, minEventScaleY, maxEventScaleY);
+  state.eventScaleY = eventScaleYForZoom();
+  state.scrollY = scrollYFromAnchorRatio(anchorRatio, pointerOffsetY, state.eventScaleY);
+  clampScrollY(resizeOverscrollMargin());
+  render();
+}
 
+function rowHeightByStep(direction) {
+  setRowScaleY(storedDetailEventScaleY + direction * ROW_HEIGHT_STEP_SCALE_Y);
+}
+
+function panByViewport(fraction) {
+  state.offsetX -= (width - stickyWidth) * fraction;
   clampOffsetX();
   render();
 }
 
-function updateObjectDetailToolbar() {
-  if (!objectDetailBackBtn || !objectDetailStatus) return;
+function scrollRowsBy(deltaY) {
+  state.scrollY += deltaY;
+  clampScrollY();
+  render();
+}
 
+function visibleYearRange() {
+  const toYear = (x) => baseScale.invert((x - state.offsetX) / state.scale);
+  return {
+    start: Math.max(minYear, toYear(stickyWidth)),
+    end: Math.min(maxYear, toYear(width))
+  };
+}
+
+function updateZoomControls() {
+  if (zoomRangeLabel) {
+    const { start, end } = visibleYearRange();
+    zoomRangeLabel.textContent = `${Math.round(start)}–${Math.floor(end)}`;
+  }
+
+  if (zoomInBtn) zoomInBtn.disabled = state.scale >= maxAllowedScale() - 1e-6;
+  if (zoomOutBtn) zoomOutBtn.disabled = state.scale <= minAllowedScale() + 1e-6;
+
+  const overview = isOverviewZoomLevel();
+  const overviewHint = "Row height is fixed in Overview: zoom in to change it";
+  if (rowsShorterBtn) {
+    rowsShorterBtn.disabled = overview || storedDetailEventScaleY <= minEventScaleY + 1e-6;
+    rowsShorterBtn.title = overview ? overviewHint : "Shorter rows (Alt + scroll)";
+  }
+  if (rowsTallerBtn) {
+    rowsTallerBtn.disabled = overview || storedDetailEventScaleY >= maxEventScaleY - 1e-6;
+    rowsTallerBtn.title = overview ? overviewHint : "Taller rows (Alt + scroll)";
+  }
+}
+
+// Fit the years to the events currently shown (or the open object)
+function fitView() {
+  const events =
+    state.viewMode === "objectDetail" && state.detailObjectId !== null
+      ? allEvents.filter(event => event.objectId === state.detailObjectId)
+      : allEvents.filter(event => activeFilterTotal() === 0 || eventMatchesFilters(event));
+
+  const start = d3.min(events, event => event.eventStart);
+  const end = d3.max(events, event => event.eventEnd);
+
+  // Only the years are fitted: the list keeps its place
+  if (start == null || end == null) {
+    resetView();
+    return;
+  }
+
+  const padding = Math.max(2, (end - start) * 0.04);
+  fitTimelineToYearRange(start - padding, end + padding);
+  syncEventHeightForSemanticZoom();
+  clampScrollY(resizeOverscrollMargin());
+  render();
+}
+
+function updateObjectDetailToolbar() {
   const inDetailMode = state.viewMode === "objectDetail" && state.detailObjectId !== null;
 
-  if (inDetailMode) {
-    objectDetailBackBtn.style.display = "";
-    objectDetailStatus.style.display = "";
-    objectDetailStatus.textContent = `Viewing object ${state.detailObjectId}`;
-  } else {
-    objectDetailBackBtn.style.display = "none";
-    objectDetailStatus.style.display = "none";
-    objectDetailStatus.textContent = "";
-  }
+  mainToolbar?.classList.toggle("is-detail", inDetailMode);
 
+  if (toolbarTitleBlock) toolbarTitleBlock.hidden = inDetailMode;
+  if (objectDetailCrumb) objectDetailCrumb.hidden = !inDetailMode;
   if (filtersToggleBtn) {
-    filtersToggleBtn.style.display = inDetailMode ? "none" : "";
+    filtersToggleBtn.hidden = inDetailMode;
+    filtersToggleBtn.setAttribute("aria-expanded", String(filtersBarOpen));
   }
+  if (toolbarFiltersRow) toolbarFiltersRow.hidden = inDetailMode || !filtersBarOpen;
 
-  if (resetFiltersBtn) {
-    resetFiltersBtn.style.display = inDetailMode ? "none" : "";
+  if (!inDetailMode) return;
+
+  const summary = objectSummaries.find(object => object.objectId === state.detailObjectId);
+  if (objectDetailStatus) objectDetailStatus.textContent = `Object ${state.detailObjectId}`;
+  if (objectDetailMeta) {
+    objectDetailMeta.textContent = summary
+      ? [summary.institution, `${summary.eventCount} events`].filter(Boolean).join(" · ")
+      : "";
   }
 }
 
@@ -934,15 +1052,7 @@ function renderEventCard(event) {
   }
 
   eventCardCategory.innerHTML = `
-    <span style="
-      display:inline-block;
-      width:10px;
-      height:10px;
-      border-radius:50%;
-      background:${event.categoryColor};
-      margin-right:2px;
-      vertical-align:middle-1;
-    "></span>
+    <span class="event-card-category-dot" style="background:${event.categoryColor}"></span>
     ${event.label || ""}
   `;
   eventCardObject.textContent = `Object ${event.objectId ?? ""}`.trim();
@@ -1001,7 +1111,7 @@ function renderEventCard(event) {
       </div>
 
       <div class="event-card-row">
-        <div class="event-card-label">Edo designation</div>
+        <div class="event-card-label">EDO designation</div>
         <div class="event-card-value">${edoText}</div>
       </div>
     </div>
@@ -1050,6 +1160,65 @@ function goToSelectedEvent() {
   const targetScrollY = targetCenterY - axisHeight - viewportHeight / 2;
 
   animateScrollYTo(targetScrollY, 420);
+}
+
+// After a filter change, make sure a matching event is on screen.
+// If one already is, the view stays put; otherwise it glides to the first match
+// (top of the list), panning in time too when that event is out of view.
+function revealFirstFilterMatch() {
+  if (state.viewMode === "objectDetail" || activeFilterTotal() === 0) return;
+
+  const rows = currentVisibleRows();
+  const matchedRows = rows.filter(row => row.matched);
+  if (matchedRows.length === 0) return;
+
+  const [leftYear, rightYear] = visibleDomain();
+  const isOnScreen = (row) => {
+    const top = row.rowTop - state.scrollY;
+    const bottom = top + row.rowHeight;
+    return bottom > axisHeight && top < height &&
+      row.event.eventEnd >= leftYear && row.event.eventStart <= rightYear;
+  };
+  if (matchedRows.some(isOnScreen)) return;
+
+  const target = matchedRows[0];
+  const targetScrollY = target.rowTop - axisHeight - 32;
+
+  let targetOffsetX = state.offsetX;
+  const event = target.event;
+  if (event.eventEnd < leftYear || event.eventStart > rightYear) {
+    const mid = (event.eventStart + event.eventEnd) / 2;
+    const plotWidth = Math.max(1, width - stickyWidth);
+    targetOffsetX = stickyWidth + plotWidth / 2 - baseScale(mid) * state.scale;
+  }
+
+  animateViewTo(targetScrollY, targetOffsetX);
+}
+
+function animateViewTo(targetScrollY, targetOffsetX, duration = 520) {
+  if (scrollAnimationFrame !== null) {
+    cancelAnimationFrame(scrollAnimationFrame);
+    scrollAnimationFrame = null;
+  }
+
+  const startScrollY = state.scrollY;
+  const startOffsetX = state.offsetX;
+  const startTime = performance.now();
+
+  function step(now) {
+    const t = Math.min(1, (now - startTime) / duration);
+    const eased = easeInOutCubic(t);
+
+    state.scrollY = startScrollY + (targetScrollY - startScrollY) * eased;
+    state.offsetX = startOffsetX + (targetOffsetX - startOffsetX) * eased;
+    clampScrollY(resizeOverscrollMargin());
+    clampOffsetX();
+    render();
+
+    scrollAnimationFrame = t < 1 ? requestAnimationFrame(step) : null;
+  }
+
+  scrollAnimationFrame = requestAnimationFrame(step);
 }
 
 function easeInOutCubic(t) {
@@ -1168,6 +1337,115 @@ function enterObjectDetailMode(objectId) {
   render();
 }
 
+const objectSearchState = { matches: [], activeIndex: -1 };
+
+function getObjectSearchMatches(query) {
+  const normalized = query.trim().toLowerCase();
+
+  return objectSummaries
+    .filter(object =>
+      !normalized ||
+      String(object.objectId).toLowerCase().includes(normalized) ||
+      String(object.institution || "").toLowerCase().includes(normalized)
+    )
+    .sort((a, b) => String(a.objectId).localeCompare(String(b.objectId), undefined, { numeric: true }));
+}
+
+function setObjectSearchPopupOpen(isOpen) {
+  objectSearchCombobox?.classList.toggle("open", isOpen);
+  objectSearchInput?.setAttribute("aria-expanded", String(isOpen));
+  if (!isOpen) objectSearchState.activeIndex = -1;
+}
+
+function renderObjectSearchOptions() {
+  if (!objectSearchOptions || !objectSearchInput) return;
+
+  objectSearchState.matches = getObjectSearchMatches(objectSearchInput.value);
+  objectSearchOptions.innerHTML = "";
+
+  if (objectSearchState.matches.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "object-search-empty";
+    empty.textContent = "No matching object";
+    objectSearchOptions.appendChild(empty);
+    return;
+  }
+
+  objectSearchState.matches.forEach((object, index) => {
+    const row = document.createElement("div");
+    row.className = "object-search-option";
+    row.id = `object-search-option-${index}`;
+    row.setAttribute("role", "option");
+    row.classList.toggle("active", index === objectSearchState.activeIndex);
+
+    const text = document.createElement("div");
+    text.className = "object-search-option-text";
+
+    const id = document.createElement("div");
+    id.className = "object-search-option-id";
+    id.textContent = object.objectId;
+    text.appendChild(id);
+
+    if (object.institution) {
+      const institution = document.createElement("div");
+      institution.className = "object-search-option-meta";
+      institution.textContent = object.institution;
+      text.appendChild(institution);
+    }
+
+    const count = document.createElement("span");
+    count.className = "filter-option-count";
+    count.textContent = String(object.eventCount);
+
+    row.append(text, count);
+
+    // mousedown so the choice lands before the input loses focus
+    row.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      selectObjectSearchResult(object.objectId);
+    });
+
+    objectSearchOptions.appendChild(row);
+  });
+
+  const active = objectSearchOptions.querySelector(".object-search-option.active");
+  active?.scrollIntoView({ block: "nearest" });
+  if (active) objectSearchInput.setAttribute("aria-activedescendant", active.id);
+  else objectSearchInput.removeAttribute("aria-activedescendant");
+}
+
+function selectObjectSearchResult(objectId) {
+  if (objectSearchInput) objectSearchInput.value = objectId;
+  setObjectSearchPopupOpen(false);
+  objectSearchInput?.blur();
+  enterObjectDetailMode(objectId);
+}
+
+function findObjectIdByQuery(query) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return null;
+
+  const objectIds = objectSummaries.map(object => object.objectId).filter(Boolean);
+  const exact = objectIds.find(objectId => String(objectId).toLowerCase() === normalized);
+  if (exact) return exact;
+
+  const partial = objectIds.filter(objectId => String(objectId).toLowerCase().includes(normalized));
+  return partial.length === 1 ? partial[0] : null;
+}
+
+function applyObjectSearch() {
+  if (!objectSearchInput) return;
+
+  const objectId = findObjectIdByQuery(objectSearchInput.value);
+
+  // No single match: keep the list open so the user can pick one
+  if (objectId) selectObjectSearchResult(objectId);
+  else {
+    renderObjectSearchOptions();
+    setObjectSearchPopupOpen(true);
+  }
+}
+
 function activeFilterTotal() {
   return (
     filtersState.category.size +
@@ -1179,28 +1457,122 @@ function activeFilterTotal() {
   );
 }
 
+const FILTER_GROUP_LABELS = [
+  ["category", "Category"],
+  ["institution", "Institution"],
+  ["edo", "EDO"],
+  ["actor", "Actor"],
+  ["cityStart", "Start city"],
+  ["cityEnd", "End city"]
+];
+
+function refreshAllFilterLists() {
+  buildFilterList("list-category", filterOptions.category, "category", "search-category", true);
+  buildFilterList("list-institution", filterOptions.institution, "institution", "search-institution");
+  buildFilterList("list-edo", filterOptions.edo, "edo", "search-edo");
+  buildFilterList("list-actor", filterOptions.actor, "actor", "search-actor");
+  buildFilterList("list-city-start", filterOptions.cityStart, "cityStart", "search-city-start");
+  buildFilterList("list-city-end", filterOptions.cityEnd, "cityEnd", "search-city-end");
+}
+
+function removeFilterValue(key, value) {
+  filtersState[key].delete(value);
+  updateFilterSummary();
+  updateAllFilterFieldUi();
+  refreshAllFilterLists();
+  render();
+  revealFirstFilterMatch();
+}
+
+function setFilterMode(mode) {
+  filtersState.mode = mode;
+
+  updateFilterModeButtons();
+  render();
+  revealFirstFilterMatch();
+}
+
+function updateFilterModeButtons() {
+  document.querySelectorAll(".toolbar-segmented [data-mode]").forEach(button => {
+    button.setAttribute("aria-checked", String(button.dataset.mode === filtersState.mode));
+  });
+}
+
 function updateFilterSummary() {
-  if (activeFilterCount) activeFilterCount.textContent = String(activeFilterTotal());
+  const total = activeFilterTotal();
+
+  if (activeFilterCount) {
+    activeFilterCount.textContent = String(total);
+    activeFilterCount.hidden = total === 0;
+  }
+
+  updateFilterModeButtons();
+  updateObjectDetailToolbar();
+
+  const chipsRow = document.getElementById("filter-chips-row");
+  if (chipsRow) chipsRow.hidden = total === 0;
+
   if (!filterSummary) return;
 
   filterSummary.innerHTML = "";
 
-  const groups = [
-    ["Category", filtersState.category],
-    ["Institution", filtersState.institution],
-    ["EDO", filtersState.edo],
-    ["Actor", filtersState.actor],
-    ["Start city", filtersState.cityStart],
-    ["End city", filtersState.cityEnd]
-  ];
+  // One pill per filter group: values inside are alternatives (or),
+  // separate pills must all hold on the same event (and)
+  const activeGroups = FILTER_GROUP_LABELS.filter(([key]) => filtersState[key].size > 0);
 
-  groups.forEach(([label, set]) => {
-    if (set.size === 0) return;
-    const chip = document.createElement("span");
-    chip.className = "filter-chip";
-    chip.textContent = `${label}: ${Array.from(set).slice(0, 2).join(", ")}${set.size > 2 ? "…" : ""}`;
-    filterSummary.appendChild(chip);
+  activeGroups.forEach(([key, label], groupIndex) => {
+    if (groupIndex > 0) filterSummary.appendChild(makeFilterJoiner("and"));
+
+    const group = document.createElement("span");
+    group.className = "filter-group-chip";
+
+    const name = document.createElement("span");
+    name.className = "filter-group-name";
+    name.textContent = label;
+    group.appendChild(name);
+
+    [...filtersState[key]].forEach((value, valueIndex) => {
+      if (valueIndex > 0) group.appendChild(makeFilterJoiner("or"));
+
+      const chip = document.createElement("span");
+      chip.className = "filter-chip";
+
+      if (key === "category") {
+        const dot = document.createElement("span");
+        dot.className = "filter-chip-dot";
+        dot.style.background = CATEGORY_MAP[value] || "#AEAEAE";
+        chip.appendChild(dot);
+      }
+
+      const text = document.createElement("span");
+      text.className = "filter-chip-label";
+      text.textContent = value;
+      text.title = `${label}: ${value}`;
+      chip.appendChild(text);
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "filter-chip-remove";
+      remove.setAttribute("aria-label", `Remove filter ${label}: ${value}`);
+      remove.textContent = "×";
+      remove.addEventListener("click", () => removeFilterValue(key, value));
+      chip.appendChild(remove);
+
+      group.appendChild(chip);
+    });
+
+    filterSummary.appendChild(group);
   });
+}
+
+function makeFilterJoiner(word) {
+  const joiner = document.createElement("span");
+  joiner.className = `filter-joiner filter-joiner-${word}`;
+  joiner.textContent = word;
+  joiner.title = word === "and"
+    ? "Events must match both filters"
+    : "Events matching either value are shown";
+  return joiner;
 }
 
 function closeAllFilterPopups() {
@@ -1311,56 +1683,52 @@ function setupFilterUI() {
   });
 
   // MODE SWITCH
-  document.querySelectorAll('input[name="filter-mode"]').forEach((input)=>{
-    input.onchange=()=>{
-      filtersState.mode=input.value;
-      render();
-    };
+  document.querySelectorAll(".toolbar-segmented [data-mode]").forEach((button)=>{
+    button.onclick=()=>setFilterMode(button.dataset.mode);
   });
 
   // PANEL BUTTONS
-  if(filtersToggleBtn) filtersToggleBtn.onclick=()=>openFiltersPanel(true);
-  if(filtersCloseBtn) filtersCloseBtn.onclick=()=>openFiltersPanel(false);
-  if(filtersOverlay) filtersOverlay.onclick=()=>openFiltersPanel(false);
-  if (resetViewBtn) resetViewBtn.addEventListener("click", () => resetView());
+  if(filtersToggleBtn) filtersToggleBtn.onclick=()=>setFiltersBarOpen(!filtersBarOpen);
 
-  // TIME SELECT DATE SELECT
-  if (timelineDateRangeToggleBtn && !timelineDateRangeToggleBtn._bound) {
-    timelineDateRangeToggleBtn.addEventListener("click", () => {
-      state.isDateRangeMode = !state.isDateRangeMode;
-      updateTimelineDateModeUI();
+  // FILTER DROPDOWNS: one per group, the search field takes focus on open
+  document.querySelectorAll(".filter-dd").forEach(dropdown => {
+    const key = dropdown.dataset.filterKey;
+    const button = dropdown.querySelector(".filter-dd-btn");
+    const popover = dropdown.querySelector(".filter-dd-popover");
+
+    bindToolbarPopover(button, popover);
+
+    if (button && !button._focusBound) {
+      button.addEventListener("click", () => {
+        if (popover.hidden) return;
+        openFilterPopup(key);
+        document.getElementById(filterPopupMap[key].inputId)?.focus();
+      });
+      button._focusBound = true;
+    }
+  });
+  if (resetViewBtn) resetViewBtn.onclick = () => fitView();
+  if (zoomInBtn) zoomInBtn.onclick = () => zoomByStep(1);
+  if (zoomOutBtn) zoomOutBtn.onclick = () => zoomByStep(-1);
+  if (rowsShorterBtn) rowsShorterBtn.onclick = () => rowHeightByStep(-1);
+  if (rowsTallerBtn) rowsTallerBtn.onclick = () => rowHeightByStep(1);
+
+  // GO TO YEAR
+  if (timelineYearForm && !timelineYearForm._bound) {
+    timelineYearForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      applyToolbarYearNavigation();
     });
 
-    timelineDateRangeToggleBtn._bound = true;
-  }
+    const clearYearError = () => {
+      timelineYearInput.removeAttribute("aria-invalid");
+      if (timelineYearError) timelineYearError.textContent = "";
+    };
 
-  if (timelineDateApplyBtn && !timelineDateApplyBtn._bound) {
-    timelineDateApplyBtn.addEventListener("click", () => {
-      console.log("GO button clicked");
-      applyToolbarDateNavigation();
-    });
+    timelineYearInput?.addEventListener("input", clearYearError);
+    timelineYearInput?.addEventListener("blur", clearYearError);
 
-    timelineDateApplyBtn._bound = true;
-  }
-
-  if (timelineDateStartInput && !timelineDateStartInput._bound) {
-    timelineDateStartInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        applyToolbarDateNavigation();
-      }
-    });
-
-    timelineDateStartInput._bound = true;
-  }
-
-  if (timelineDateEndInput && !timelineDateEndInput._bound) {
-    timelineDateEndInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        applyToolbarDateNavigation();
-      }
-    });
-
-    timelineDateEndInput._bound = true;
+    timelineYearForm._bound = true;
   }
 
   if (objectDetailBackBtn) {
@@ -1376,6 +1744,8 @@ function setupFilterUI() {
     state.detailObjectId = null;
     state.comparisonSnapshot = null;
 
+    if (objectSearchInput) objectSearchInput.value = "";
+
       render();
     };
   }
@@ -1389,20 +1759,11 @@ function setupFilterUI() {
         filtersState[key].clear();
       });
 
-      filtersState.mode="focus";
-
-      const focusInput = document.querySelector('input[name="filter-mode"][value="focus"]');
-      if (focusInput) focusInput.checked = true;
+      filtersState.mode="regular";
 
       updateFilterSummary();
       updateAllFilterFieldUi();
-
-      buildFilterList("list-category",filterOptions.category,"category","search-category",true);
-      buildFilterList("list-institution",filterOptions.institution,"institution","search-institution");
-      buildFilterList("list-edo",filterOptions.edo,"edo","search-edo");
-      buildFilterList("list-actor",filterOptions.actor,"actor","search-actor");
-      buildFilterList("list-city-start",filterOptions.cityStart,"cityStart","search-city-start");
-      buildFilterList("list-city-end",filterOptions.cityEnd,"cityEnd","search-city-end");
+      refreshAllFilterLists();
 
       render();
 
@@ -1410,14 +1771,87 @@ function setupFilterUI() {
 
   }
 
-  // NAV TOOLTIP
-  if(navHelpBtn){
+  // OBJECT SEARCH
+  if (objectSearchForm && !objectSearchForm._bound) {
+    objectSearchForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const active = objectSearchState.matches[objectSearchState.activeIndex];
+      if (active) selectObjectSearchResult(active.objectId);
+      else applyObjectSearch();
+    });
 
-    navHelpBtn.onmouseenter=showNavHelpTooltip;
-    navHelpBtn.onmouseleave=hideNavHelpTooltip;
-    navHelpBtn.onfocus=showNavHelpTooltip;
-    navHelpBtn.onblur=hideNavHelpTooltip;
+    objectSearchInput?.addEventListener("input", () => {
+      objectSearchState.activeIndex = -1;
+      renderObjectSearchOptions();
+      setObjectSearchPopupOpen(true);
+    });
 
+    objectSearchInput?.addEventListener("focus", () => {
+      renderObjectSearchOptions();
+      setObjectSearchPopupOpen(true);
+    });
+
+    objectSearchInput?.addEventListener("blur", () => setObjectSearchPopupOpen(false));
+
+    objectSearchInput?.addEventListener("keydown", (event) => {
+      const total = objectSearchState.matches.length;
+
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        if (!total) return;
+        setObjectSearchPopupOpen(true);
+        const step = event.key === "ArrowDown" ? 1 : -1;
+        objectSearchState.activeIndex = (objectSearchState.activeIndex + step + total) % total;
+        renderObjectSearchOptions();
+      } else if (event.key === "Escape") {
+        setObjectSearchPopupOpen(false);
+      }
+    });
+
+    objectSearchForm._bound = true;
+  }
+
+  // HELP AND LEGEND POPOVERS
+  bindToolbarPopover(navHelpBtn, navHelpTooltip);
+  bindToolbarPopover(legendBtn, legendPopover);
+
+  if (!setupFilterUI._toolbarKeysBound) {
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeToolbarPopovers();
+
+      const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "");
+      if (typing || event.ctrlKey || event.metaKey || event.altKey) return;
+
+      if (event.key === "/") {
+        event.preventDefault();
+        objectSearchInput?.focus();
+        return;
+      }
+
+      // Timeline navigation: arrows move, + / − zoom, 0 fits
+      const rowStep = (event.shiftKey ? 5 : 1) * eventHeight * state.eventScaleY * 2;
+      const keyActions = {
+        ArrowLeft: () => panByViewport(event.shiftKey ? -0.5 : -0.1),
+        ArrowRight: () => panByViewport(event.shiftKey ? 0.5 : 0.1),
+        ArrowUp: () => scrollRowsBy(-rowStep),
+        ArrowDown: () => scrollRowsBy(rowStep),
+        "+": () => zoomByStep(1),
+        "=": () => zoomByStep(1),
+        "-": () => zoomByStep(-1),
+        "0": () => fitView()
+      };
+      const action = keyActions[event.key];
+      if (action) {
+        event.preventDefault();
+        action();
+      }
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!event.target.closest(".toolbar-popover-anchor")) closeToolbarPopovers();
+    });
+
+    setupFilterUI._toolbarKeysBound = true;
   }
 
   updateFilterSummary();
@@ -1492,10 +1926,6 @@ function setupFilterUI() {
     setupFilterUI._eventCardOutsideBound = true;
   }
 
-  if (!setupFilterUI._timelineDateInitDone) {
-    updateTimelineDateModeUI();
-    setupFilterUI._timelineDateInitDone = true;
-  }
 
 }
 
@@ -1580,10 +2010,6 @@ function updateFiltersResultsSummary() {
 function currentVisibleRows() {
   const matchedRowHeight = scaledMatchedRowHeight();
   const overviewExtraGap = getOverviewExtraGap();
-  const unmatchedRowHeight =
-    filtersState.mode === "collapsed"
-      ? unmatchedCollapsedEventHeight + (rowHeight - eventHeight)
-      : matchedRowHeight;
 
   const rows = [];
   let cursorY = axisHeight;
@@ -1622,15 +2048,8 @@ function currentVisibleRows() {
       cursorY += objectGapHalf;
     }
 
-    const visibleEventHeight =
-      filtersState.mode === "collapsed" && !matched
-        ? unmatchedCollapsedEventHeight
-        : scaledEventHeight();
-
-    const rowH =
-      filtersState.mode === "collapsed" && !matched
-        ? unmatchedRowHeight
-        : matchedRowHeight;
+    const visibleEventHeight = scaledEventHeight();
+    const rowH = matchedRowHeight;
 
     rows.push({
       event,
@@ -1867,24 +2286,37 @@ function getSemanticZoomLevel() {
   return 3;                        // DETAIL
 }
 
-function getEventRenderedWidth(event) {
-  return Math.max(2, scaledX(event.eventEnd) - scaledX(event.eventStart));
+function eventBarWidth(event) {
+  return scaledX(event.eventEnd) - scaledX(event.eventStart);
 }
 
-function shouldUseOverviewGlyphMode(event) {
-  return getSemanticZoomLevel() === 1 && getEventRenderedWidth(event) < 18;
-}
+// Horizontal extent of what is actually drawn for an event (diamonds and
+// widened short bars included), without the open-end dotted tails
+function eventVisualSpan(event, drawAsGlyph) {
+  if (drawAsGlyph) return getOverviewDisplayedSpan(event);
 
-function isSectionSmallNonExact(section) {
-  return section.isExactDate !== true;
-}
+  let x0 = scaledX(event.eventStart);
+  let x1 = scaledX(event.eventEnd);
 
-function getCurrentSemanticZoomLevelForView() {
-  const level = getSemanticZoomLevel();
+  if (eventBarWidth(event) < MIN_BAR_WIDTH_PX) {
+    const centerX = (x0 + x1) / 2;
+    x0 = Math.min(x0, centerX - MIN_BAR_WIDTH_PX / 2);
+    x1 = Math.max(x1, centerX + MIN_BAR_WIDTH_PX / 2);
+  }
 
-  if (level === 1) return "Overview";
-  if (level === 2) return "Structure";
-  return "Detail";
+  const sections = event.sections || [];
+  const halfDiamond = OVERVIEW_DIAMOND_SIZE / 2;
+  const first = sections[0];
+  const last = sections[sections.length - 1];
+
+  if (first?.isExactDate === true) {
+    x0 = Math.min(x0, scaledX((first.start + first.end) / 2) - halfDiamond);
+  }
+  if (last?.isExactDate === true) {
+    x1 = Math.max(x1, scaledX((last.start + last.end) / 2) + halfDiamond);
+  }
+
+  return { x0, x1 };
 }
 
 function isOverviewZoomLevel() {
@@ -1905,10 +2337,29 @@ function getOverviewExtraGap() {
   return fullOverviewGap * (1 - t);
 }
 
+// Past the Overview threshold rows grow gradually up to the chosen height,
+// instead of jumping from the Overview height in one zoom step
+const ROW_GROWTH_START_PX_PER_YEAR = 1.5;
+const ROW_GROWTH_END_PX_PER_YEAR = 2;
+
+function eventScaleYForZoom() {
+  if (isOverviewZoomLevel()) return OVERVIEW_FIXED_EVENT_SCALE_Y;
+
+  const pxPerYear = Math.abs((baseScale(1) - baseScale(0)) * state.scale);
+  const t = clamp(
+    (pxPerYear - ROW_GROWTH_START_PX_PER_YEAR) /
+      (ROW_GROWTH_END_PX_PER_YEAR - ROW_GROWTH_START_PX_PER_YEAR),
+    0,
+    1
+  );
+  const eased = t * t * (3 - 2 * t);
+
+  return OVERVIEW_FIXED_EVENT_SCALE_Y +
+    (storedDetailEventScaleY - OVERVIEW_FIXED_EVENT_SCALE_Y) * eased;
+}
+
 function syncEventHeightForSemanticZoom(pointerClientY = null) {
-  const targetScaleY = isOverviewZoomLevel()
-    ? OVERVIEW_FIXED_EVENT_SCALE_Y
-    : storedDetailEventScaleY;
+  const targetScaleY = eventScaleYForZoom();
 
   if (state.eventScaleY === targetScaleY) return;
 
@@ -1925,12 +2376,7 @@ function syncEventHeightForSemanticZoom(pointerClientY = null) {
     state.eventScaleY
   );
 
-  if (isOverviewZoomLevel()) {
-    storedDetailEventScaleY = state.eventScaleY;
-    state.eventScaleY = OVERVIEW_FIXED_EVENT_SCALE_Y;
-  } else {
-    state.eventScaleY = storedDetailEventScaleY;
-  }
+  state.eventScaleY = targetScaleY;
 
   state.scrollY = scrollYFromAnchorRatio(
     anchorRatio,
@@ -2062,7 +2508,7 @@ function getOverviewDisplayedSpan(event) {
 }
 
 function drawOverviewGlyphEvent(group, event, rowCenterY, currentEventHeight, matched, isSelected) {
-  const glyphFillOpacity = matched ? OPACITY.overviewLine : filteredOutOpacity;
+  const glyphFillOpacity = OPACITY.overviewLine;
 
   const lineThickness = Math.max(2, Math.min(3, currentEventHeight * 0.16));
   const squareSize = OVERVIEW_SQUARE_SIZE;
@@ -2268,7 +2714,7 @@ function drawOverviewGlyphEvent(group, event, rowCenterY, currentEventHeight, ma
       "stroke",
       isDoubleDiamondDuration
         ? event.categoryColor
-        : rgba(event.categoryColor, 0.3)
+        : rgba(event.categoryColor, ALPHA.body)
     )
     .attr("stroke-width", selected ? Math.max(3, lineThickness + 1) : Math.max(2, lineThickness))
     .attr("stroke-linecap", "round")
@@ -2315,7 +2761,7 @@ function showObjectMeta(yTop, yBottom) {
 }
 
 function objectTextWidth() {
-  return stickyWidth - 72;
+  return stickyWidth - 96;
 }
 
 function truncateText(text, maxChars) {
@@ -2353,8 +2799,8 @@ function initializeFromData() {
         const sections = event.sections
           .filter((section) => section.start !== null && section.end !== null)
           .map((section) => {
-            let resolvedOpacity = section.opacity ?? (section.kind === "mid" ? regularMidOpacity : 0.3);
-            if (section.kind === "single") resolvedOpacity = singleSectionOpacityForZoom();
+            let resolvedOpacity = section.opacity ?? (section.kind === "mid" ? regularMidOpacity : ALPHA.edge);
+            if (section.kind === "single") resolvedOpacity = ALPHA.body;
 
             return {
               ...section,
@@ -2400,7 +2846,8 @@ function initializeFromData() {
     });
   });
 
-  render();
+  // The page opens on Fit view
+  fitView();
 }
 
 async function loadCSV() {
@@ -2439,6 +2886,7 @@ async function loadCSV() {
           buildSection("mid", mid1Raw, mid2Raw, OPACITY.structureMid, patternFromCode(e.uncertainty_mid), e.uncertainty_mid || ""),
           buildSection("end", mid2Raw, endRaw, OPACITY.structureEnd, patternFromCode(e.uncertainty_end), e.uncertainty_end || "")
         ];
+        sections = normalizeEventSections(sections);
       }
 
       return {
@@ -2467,7 +2915,6 @@ function render() {
   clampScrollY();
 
   const rows = currentVisibleRows();
-  rowsCacheForZoomIndicator = rows;
   const currentContentHeight = contentHeightFromRows(rows);
 
   svg.attr("viewBox", `0 0 ${width} ${height}`);
@@ -2528,6 +2975,14 @@ function render() {
     .attr("y1", axisHeight)
     .attr("y2", axisHeight);
 
+  axisClip.select("rect")
+    .attr("x", stickyWidth)
+    .attr("y", 0)
+    .attr("width", Math.max(0, width - stickyWidth))
+    .attr("height", axisHeight);
+
+  const axisLabelsLayer = axisLayer.append("g").attr("clip-path", "url(#axis-clip)");
+
   const pxPerYear = Math.abs((baseScale(1) - baseScale(0)) * state.scale);
   const step = visibleYearStep(pxPerYear);
   const [domainStart, domainEnd] = visibleDomain();
@@ -2545,7 +3000,10 @@ function render() {
       .attr("y2", Math.max(height, currentContentHeight - state.scrollY))
       .attr("class", `${major ? "major " : ""}year-grid-line`);
 
-    axisLayer.append("text")
+    // Skip labels that would be cut in half by the divider
+    if (x < stickyWidth + AXIS_LABEL_HALF_WIDTH) return;
+
+    axisLabelsLayer.append("text")
       .attr("class", "axis-label")
       .attr("x", x)
       .attr("y", 18)
@@ -2562,7 +3020,7 @@ function render() {
       .attr("y1", axisHeight)
       .attr("y2", Math.max(height, currentContentHeight - state.scrollY));
 
-    axisLayer.append("text")
+    axisLabelsLayer.append("text")
       .attr("class", "axis-label-special")
       .attr("x", specialX)
       .attr("y", 34)
@@ -2586,19 +3044,19 @@ function render() {
       .attr("opacity", eventVisualOpacity);
 
     const semanticLevel = getSemanticZoomLevel();
+    const drawAsGlyph = semanticLevel === 1;
 
     const rowCenterY = rowBaseTop + rowHeight / 2;
     const normalRectY = rowCenterY - currentEventHeight / 2;
 
-    if (isSelected) {
-      let displayedX0 = scaledX(event.eventStart);
-      let displayedX1 = scaledX(event.eventEnd);
+    const visualSpan = eventVisualSpan(event, drawAsGlyph);
+    const openLeft = isOpenLeftEDTF(event.edtf);
+    const openRight = isOpenRightEDTF(event.edtf);
 
-      if (semanticLevel === 1) {
-        const overviewSpan = getOverviewDisplayedSpan(event);
-        displayedX0 = overviewSpan.x0;
-        displayedX1 = overviewSpan.x1;
-      }
+    if (isSelected) {
+      // The box also wraps the dotted tails of open starts and ends
+      const displayedX0 = visualSpan.x0 - (openLeft ? OPEN_END_LINE_LENGTH : 0);
+      const displayedX1 = visualSpan.x1 + (openRight ? OPEN_END_LINE_LENGTH : 0);
 
       const boxX = displayedX0 - SELECTION_BOX_PAD_X;
       const boxWidth = Math.max(8, displayedX1 - displayedX0) + SELECTION_BOX_PAD_X * 2;
@@ -2619,37 +3077,53 @@ function render() {
         .attr("pointer-events", "none");
     }
 
-    if (isOpenLeftEDTF(event.edtf)) {
-      const openLineOffset = 40;
+    // Invisible hit area so the dotted tails select and show the tooltip too
+    const addOpenEndHitArea = (x) => {
+      group.append("rect")
+        .attr("class", "event-interactive")
+        .attr("x", x)
+        .attr("y", rowCenterY - Math.max(8, currentEventHeight / 2))
+        .attr("width", OPEN_END_LINE_LENGTH)
+        .attr("height", Math.max(16, currentEventHeight))
+        .attr("fill", "transparent")
+        .style("cursor", "pointer")
+        .on("pointerdown", (ev) => handleEventSelectionPointerDown(ev, event))
+        .on("mouseenter", (ev) => showTooltip(tooltipHTMLForEvent(event), ev.clientX, ev.clientY))
+        .on("mousemove", (ev) => showTooltip(tooltipHTMLForEvent(event), ev.clientX, ev.clientY))
+        .on("mouseleave", hideTooltip);
+    };
+
+    if (openLeft) {
+      addOpenEndHitArea(visualSpan.x0 - OPEN_END_LINE_LENGTH);
 
       group.append("line")
-        .attr("x1", scaledX(event.eventStart) - openLineOffset)
-        .attr("x2", scaledX(event.eventStart))
+        .attr("x1", visualSpan.x0 - OPEN_END_LINE_LENGTH)
+        .attr("x2", visualSpan.x0)
         .attr("y1", rowCenterY)
         .attr("y2", rowCenterY)
-        .attr("stroke", rgba(event.categoryColor, matched ? 0.3 : filteredOutOpacity))
+        .attr("stroke", rgba(event.categoryColor, ALPHA.edge))
         .attr("stroke-width", 3)
         .attr("stroke-dasharray", "0.1 10")
         .attr("stroke-linecap", "round")
         .attr("pointer-events", "none");
     }
 
-    if (isOpenRightEDTF(event.edtf)) {
-      const openRightOffset = 40;
+    if (openRight) {
+      addOpenEndHitArea(visualSpan.x1);
 
       group.append("line")
-        .attr("x1", scaledX(event.eventEnd))
-        .attr("x2", scaledX(event.eventEnd) + openRightOffset)
+        .attr("x1", visualSpan.x1)
+        .attr("x2", visualSpan.x1 + OPEN_END_LINE_LENGTH)
         .attr("y1", rowCenterY)
         .attr("y2", rowCenterY)
-        .attr("stroke", rgba(event.categoryColor, matched ? 0.3 : filteredOutOpacity))
+        .attr("stroke", rgba(event.categoryColor, ALPHA.edge))
         .attr("stroke-width", 3)
         .attr("stroke-dasharray", "0.1 10")
         .attr("stroke-linecap", "round")
         .attr("pointer-events", "none");
     }
 
-  if (semanticLevel === 1) {
+  if (drawAsGlyph) {
 
     drawOverviewGlyphEvent(
       group,
@@ -2672,6 +3146,10 @@ function render() {
     const structureDetailDoubleDiamondEvent =
       firstSection?.isExactDate === true && lastSection?.isExactDate === true;
 
+    // A too-short event becomes one bar of MIN_BAR_WIDTH_PX centred on it
+    const narrowEvent = eventBarWidth(event) < MIN_BAR_WIDTH_PX;
+    let narrowBarDrawn = false;
+
     event.sections.forEach((section, sectionIndex) => {
 
       const x0 = scaledX(section.start);
@@ -2691,18 +3169,23 @@ function render() {
         });
 
       } else {
+        if (narrowEvent && narrowBarDrawn) return;
+
         const rectHeight = currentEventHeight;
         const rectY = normalRectY;
-        const rectWidth = Math.max(2, x1 - x0);
-        const rectX = x0;
+        const eventCenterX = (scaledX(event.eventStart) + scaledX(event.eventEnd)) / 2;
+        const rectWidth = narrowEvent ? MIN_BAR_WIDTH_PX : Math.max(2, x1 - x0);
+        const rectX = narrowEvent ? eventCenterX - MIN_BAR_WIDTH_PX / 2 : x0;
+        if (narrowEvent) narrowBarDrawn = true;
 
         let rectOpacity = section.opacity;
 
         if (structureDetailDoubleDiamondEvent && matched) {
-          rectOpacity = 0.8;
+          rectOpacity = ALPHA.body;
         }
 
-        if (!matched) rectOpacity = filteredOutOpacity;
+        if (narrowEvent) rectOpacity = ALPHA.body;
+
 
         const rect = group.append("rect")
           .attr("class", "event-rect event-interactive")
@@ -2766,7 +3249,7 @@ function render() {
       event,
       diamond.symbol,
       OVERVIEW_DIAMOND_SIZE,
-      matched ? 1 : filteredOutOpacity
+      1
     );
 
     const diamondHit = group.append("rect")
@@ -2789,33 +3272,15 @@ function render() {
 
   if (semanticLevel >= 2 && matched) {
 
-    const labelAnchorBaseYear =
-      isOpenRightEDTF(event.edtf)
-        ? Math.min(event.eventEnd, maxYear - 1)
-        : event.eventEnd;
-
-    const eventEndsWithDiamond =
-      event.sections &&
-      event.sections.length > 0 &&
-      event.sections[event.sections.length - 1].isExactDate === true;
-
-    let effectiveLabelGap = labelGap;
-
-    if (eventEndsWithDiamond) {
-      effectiveLabelGap = labelGapEndDiamond;
-    }
-
-    if (isOpenRightEDTF(event.edtf)) {
-      effectiveLabelGap = labelGapOpenEnd;
-    } else if (eventEndsWithDiamond) {
-      effectiveLabelGap = labelGapEndDiamond;
-    }
-    const labelAnchorX = scaledX(labelAnchorBaseYear) + effectiveLabelGap;
+    // Labels always sit to the left of the event, past any dotted open start
+    const labelAnchorX =
+      visualSpan.x0 - (openLeft ? OPEN_END_LINE_LENGTH : 0) - labelGap;
 
     labelsLayer.append("text")
       .attr("class", "event-label")
       .attr("x", labelAnchorX)
       .attr("y", rowCenterY)
+      .attr("text-anchor", "end")
       .text(event.label);
 
   }
@@ -2840,9 +3305,9 @@ function render() {
 
       if (yBottom < axisHeight - 20 || yTop > height + 20) return;
 
-      const textMaxWidth = objectTextWidth();
-      const titleChars = charsForWidth(textMaxWidth, 13);
-      const metaChars = charsForWidth(textMaxWidth, 11);
+      // The title shares its line with the event count badge; meta lines run full width
+      const titleChars = charsForWidth(objectTextWidth(), 13);
+      const metaChars = charsForWidth(stickyWidth - 28, 11);
 
       const card = document.createElement("div");
       card.className = "left-object-card";
@@ -2876,7 +3341,10 @@ function render() {
 
       const badgeEl = document.createElement("div");
       badgeEl.className = "left-object-badge";
-      badgeEl.textContent = objectRows.length;
+      // Spell out what the number counts: all known events of the object
+      const eventsLabel = `${object.eventCount} ${object.eventCount === 1 ? "event" : "events"}`;
+      badgeEl.textContent = eventsLabel;
+      badgeEl.title = `${object.eventCount} known ${object.eventCount === 1 ? "event" : "events"} for this object`;
       innerCard.appendChild(badgeEl);
 
       card.appendChild(innerCard);
@@ -2895,10 +3363,7 @@ function render() {
   updateFiltersResultsSummary();
   updateObjectDetailToolbar();
   updateToolbarResultsSummary();
-
-  if (semanticZoomIndicator) {
-    semanticZoomIndicator.textContent = `Zoom level: ${getCurrentSemanticZoomLevelForView()}`;
-  }
+  updateZoomControls();
 }
 
 function zoomAround(pointerX, deltaY) {
@@ -2940,21 +3405,18 @@ svg.on("wheel", (event) => {
     return;
   }
 
-  if (event.shiftKey) {
-    if (isOverviewZoomLevel()) {
-      return;
-    }
-
+  // Alt + scroll changes the row height (some systems deliver it as deltaX)
+  if (event.altKey) {
     const [, pointerY] = d3.pointer(event, svg.node());
-    const pointerOffsetY = pointerY - axisHeight;
-    const baseScrollY = dragState ? dragState.scrollY : state.scrollY;
-    const baseScaleY = dragState ? dragState.eventScaleY : state.eventScaleY;
-    const anchorRatio = verticalAnchorRatio(baseScrollY, pointerOffsetY, baseScaleY);
-    const nextScaleY = clamp(state.eventScaleY - event.deltaY * 0.003, minEventScaleY, maxEventScaleY);
-    state.eventScaleY = nextScaleY;
-    storedDetailEventScaleY = state.eventScaleY;
-    state.scrollY = scrollYFromAnchorRatio(anchorRatio, pointerOffsetY, state.eventScaleY);
-    clampScrollY(resizeOverscrollMargin());
+    const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+    setRowScaleY(storedDetailEventScaleY - delta * 0.003, pointerY - axisHeight);
+    return;
+  }
+
+  // Shift + scroll moves through time; macOS already turns it into deltaX
+  if (event.shiftKey) {
+    state.offsetX -= Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+    clampOffsetX();
     render();
     return;
   }
@@ -2985,7 +3447,7 @@ svg.on("pointerdown", (event) => {
     scrollY: state.scrollY,
     eventScaleY: state.eventScaleY,
     /* pointerCanvasY: d3.pointer(event, svg.node())[1], */
-    resizeMode: event.shiftKey
+    resizeMode: event.altKey
   };
   svg.node().setPointerCapture(event.pointerId);
 });
@@ -2995,39 +3457,16 @@ svg.on("pointermove", (event) => {
   const dx = event.clientX - dragState.startX;
   const dy = event.clientY - dragState.startY;
 
-  const resizeActive = dragState.resizeMode || event.shiftKey;
+  const resizeActive = dragState.resizeMode || event.altKey;
   if (resizeActive) {
     if (isOverviewZoomLevel()) {
       return;
     }
 
     const [, currentPointerY] = d3.pointer(event, svg.node());
-    const pointerOffsetY = currentPointerY - axisHeight;
-
-    const anchorRatio = verticalAnchorRatio(
-      state.scrollY,
-      pointerOffsetY,
-      state.eventScaleY
-    );
-
-    state.eventScaleY = clamp(
-      state.eventScaleY - dy * 0.008,
-      minEventScaleY,
-      maxEventScaleY
-    );
-
-    storedDetailEventScaleY = state.eventScaleY;
-
-    state.scrollY = scrollYFromAnchorRatio(
-      anchorRatio,
-      pointerOffsetY,
-      state.eventScaleY
-    );
+    setRowScaleY(storedDetailEventScaleY - dy * 0.008, currentPointerY - axisHeight);
 
     dragState.startY = event.clientY;
-
-    clampScrollY(resizeOverscrollMargin());
-    render();
     return;
   }
 
@@ -3052,11 +3491,19 @@ svg.on("pointerup", endDrag);
 svg.on("pointercancel", endDrag);
 svg.on("pointerleave", endDrag);
 
-window.addEventListener("resize", () => {
+function handleTimelineResize() {
   width = wrap.clientWidth;
   height = wrap.clientHeight;
-  positionNavHelpTooltip();
   render();
-});
+}
+
+window.addEventListener("resize", handleTimelineResize);
+
+// The toolbar changes height when the filter bar opens or closes
+if (window.ResizeObserver) {
+  new ResizeObserver(() => {
+    if (wrap.clientWidth !== width || wrap.clientHeight !== height) handleTimelineResize();
+  }).observe(wrap);
+}
 
 loadCSV();

@@ -355,24 +355,7 @@ function updateFilterFieldUi(key){
 
   }
 
-  const ddBtn=count?.closest(".filter-dd-btn");
-  ddBtn?.classList.toggle("is-active", selectedCount>0);
-
-  // The dropdown itself shows what is selected, so no separate chip row is needed
-  const label=ddBtn?.querySelector(".filter-dd-label");
-  if(label){
-    const name=label.dataset.label;
-    const values=[...filtersState[key]];
-    label.textContent=values.length ? `${name}: ${values[0]}` : name;
-    label.title=values.length ? `${name}: ${values.join(", ")}` : "";
-    if(count){
-      count.textContent=`+${selectedCount-1}`;
-      count.classList.toggle("active", selectedCount>1);
-    }
-  }
-
-  const ddX=ddBtn?.parentElement.querySelector(".filter-dd-x");
-  if(ddX) ddX.hidden=selectedCount===0;
+  count?.closest(".filter-dd-btn")?.classList.toggle("is-active", selectedCount>0);
 
   if(clear){
     if(selectedCount>0){
@@ -684,6 +667,39 @@ function countForFilterOption(key, value) {
   return 0;
 }
 
+// Events each value of one group would show, given the other groups' selections.
+// The group's own selection is ignored, since its values are alternatives (or).
+function facetCountsFor(key) {
+  const counts = new Map();
+  if (state.viewMode === "objectDetail") return counts;
+
+  const own = filtersState[key];
+  filtersState[key] = new Set();
+  const events = allEvents.filter(eventMatchesFilters);
+  filtersState[key] = own;
+
+  const valuesOf = {
+    category: (e) => [e.categoryKey],
+    institution: (e) => [e.institution],
+    edo: (e) => [e.edoDesignations],
+    actor: (e) => e.actors,
+    cityStart: (e) => [e.cityStart],
+    cityEnd: (e) => [e.cityEnd]
+  }[key];
+
+  events.forEach((event) => {
+    valuesOf(event).forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
+  });
+  return counts;
+}
+
+// Re-draw the other dropdowns' lists so their counts follow the current selection
+function refreshFilterListCounts(exceptKey) {
+  document.querySelectorAll(".filter-list").forEach((list) => {
+    if (list._filterKey !== exceptKey && list._renderList) list._renderList();
+  });
+}
+
 function buildFilterList(containerId, values, filterKey, searchInputId, showColor = false) {
   const container = document.getElementById(containerId);
   const searchInput = document.getElementById(searchInputId);
@@ -693,11 +709,21 @@ function buildFilterList(containerId, values, filterKey, searchInputId, showColo
     const q = normalizeDateString(searchInput.value).toLowerCase();
     container.innerHTML = "";
 
+    const counts = facetCountsFor(filterKey);
+    const countOf = (value) => counts.get(value) || 0;
+    const isAvailable = (value) => countOf(value) > 0 || filtersState[filterKey].has(value);
+
+    // Values that would leave nothing go to the bottom, faded and not selectable
     values
       .filter((value) => value.toLowerCase().includes(q))
+      .sort((a, b) => Number(isAvailable(b)) - Number(isAvailable(a)))
       .forEach((value) => {
         const row = document.createElement("label");
         row.className = "filter-option";
+        if (!isAvailable(value)) {
+          row.classList.add("is-unavailable");
+          row.title = "No events with this value match the other filters";
+        }
 
         row.addEventListener("mousedown", (event) => {
           event.stopPropagation();
@@ -709,6 +735,7 @@ function buildFilterList(containerId, values, filterKey, searchInputId, showColo
         const input = document.createElement("input");
         input.type = "checkbox";
         input.checked = filtersState[filterKey].has(value);
+        input.disabled = !isAvailable(value);
         input.addEventListener("change",()=>{
 
           if(input.checked){
@@ -719,8 +746,10 @@ function buildFilterList(containerId, values, filterKey, searchInputId, showColo
 
           updateFilterSummary();
           updateFilterFieldUi(filterKey);
+          refreshFilterListCounts(filterKey);
 
           render();
+          revealFirstFilterMatch();
 
         });
 
@@ -741,7 +770,7 @@ function buildFilterList(containerId, values, filterKey, searchInputId, showColo
 
         const count = document.createElement("span");
         count.className = "filter-option-count";
-        count.textContent = countForFilterOption(filterKey, value);
+        count.textContent = countOf(value);
 
         row.appendChild(left);
         row.appendChild(count);
@@ -749,7 +778,9 @@ function buildFilterList(containerId, values, filterKey, searchInputId, showColo
       });
   };
 
-  searchInput.addEventListener("input", renderList);
+  container._filterKey = filterKey;
+  container._renderList = renderList;
+  searchInput.oninput = renderList;
   renderList();
 }
 
@@ -778,11 +809,21 @@ function updateToolbarResultsSummary() {
 
   // With filters on, count what matches rather than every row drawn
   if (state.viewMode !== "objectDetail" && activeFilterTotal() > 0) {
+    // The result sits at the head of the filters line; the title keeps the dataset size
     const { matchingObjectCount, matchingEventCount } = getFilterResultsCounts();
-    toolbarResultsSummary.textContent =
-      `${ofTotal(matchingObjectCount, totalObjects)} objects · ${ofTotal(matchingEventCount, totalEvents)} events`;
+    toolbarResultsSummary.textContent = `${totalObjects} objects · ${totalEvents} events`;
+
+    const lead = document.getElementById("filter-results-lead");
+    if (lead) {
+      lead.innerHTML = `<b></b> <span></span>`;
+      const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+      lead.querySelector("b").textContent = plural(matchingObjectCount, "object");
+      lead.querySelector("span").textContent = `· ${plural(matchingEventCount, "event")}, where`;
+    }
+
     return;
   }
+
 
   toolbarResultsSummary.textContent =
     `${ofTotal(visibleObjects, totalObjects)} objects · ${ofTotal(visibleEvents, totalEvents)} events`;
@@ -1121,6 +1162,65 @@ function goToSelectedEvent() {
   animateScrollYTo(targetScrollY, 420);
 }
 
+// After a filter change, make sure a matching event is on screen.
+// If one already is, the view stays put; otherwise it glides to the first match
+// (top of the list), panning in time too when that event is out of view.
+function revealFirstFilterMatch() {
+  if (state.viewMode === "objectDetail" || activeFilterTotal() === 0) return;
+
+  const rows = currentVisibleRows();
+  const matchedRows = rows.filter(row => row.matched);
+  if (matchedRows.length === 0) return;
+
+  const [leftYear, rightYear] = visibleDomain();
+  const isOnScreen = (row) => {
+    const top = row.rowTop - state.scrollY;
+    const bottom = top + row.rowHeight;
+    return bottom > axisHeight && top < height &&
+      row.event.eventEnd >= leftYear && row.event.eventStart <= rightYear;
+  };
+  if (matchedRows.some(isOnScreen)) return;
+
+  const target = matchedRows[0];
+  const targetScrollY = target.rowTop - axisHeight - 32;
+
+  let targetOffsetX = state.offsetX;
+  const event = target.event;
+  if (event.eventEnd < leftYear || event.eventStart > rightYear) {
+    const mid = (event.eventStart + event.eventEnd) / 2;
+    const plotWidth = Math.max(1, width - stickyWidth);
+    targetOffsetX = stickyWidth + plotWidth / 2 - baseScale(mid) * state.scale;
+  }
+
+  animateViewTo(targetScrollY, targetOffsetX);
+}
+
+function animateViewTo(targetScrollY, targetOffsetX, duration = 520) {
+  if (scrollAnimationFrame !== null) {
+    cancelAnimationFrame(scrollAnimationFrame);
+    scrollAnimationFrame = null;
+  }
+
+  const startScrollY = state.scrollY;
+  const startOffsetX = state.offsetX;
+  const startTime = performance.now();
+
+  function step(now) {
+    const t = Math.min(1, (now - startTime) / duration);
+    const eased = easeInOutCubic(t);
+
+    state.scrollY = startScrollY + (targetScrollY - startScrollY) * eased;
+    state.offsetX = startOffsetX + (targetOffsetX - startOffsetX) * eased;
+    clampScrollY(resizeOverscrollMargin());
+    clampOffsetX();
+    render();
+
+    scrollAnimationFrame = t < 1 ? requestAnimationFrame(step) : null;
+  }
+
+  scrollAnimationFrame = requestAnimationFrame(step);
+}
+
 function easeInOutCubic(t) {
   return t < 0.5
     ? 4 * t * t * t
@@ -1381,6 +1481,7 @@ function removeFilterValue(key, value) {
   updateAllFilterFieldUi();
   refreshAllFilterLists();
   render();
+  revealFirstFilterMatch();
 }
 
 function setFilterMode(mode) {
@@ -1388,6 +1489,7 @@ function setFilterMode(mode) {
 
   updateFilterModeButtons();
   render();
+  revealFirstFilterMatch();
 }
 
 function updateFilterModeButtons() {
@@ -1407,14 +1509,31 @@ function updateFilterSummary() {
   updateFilterModeButtons();
   updateObjectDetailToolbar();
 
-  if (resetFiltersBtn) resetFiltersBtn.hidden = total === 0;
+  const chipsRow = document.getElementById("filter-chips-row");
+  if (chipsRow) chipsRow.hidden = total === 0;
 
   if (!filterSummary) return;
 
   filterSummary.innerHTML = "";
 
-  FILTER_GROUP_LABELS.forEach(([key, label]) => {
-    filtersState[key].forEach(value => {
+  // One pill per filter group: values inside are alternatives (or),
+  // separate pills must all hold on the same event (and)
+  const activeGroups = FILTER_GROUP_LABELS.filter(([key]) => filtersState[key].size > 0);
+
+  activeGroups.forEach(([key, label], groupIndex) => {
+    if (groupIndex > 0) filterSummary.appendChild(makeFilterJoiner("and"));
+
+    const group = document.createElement("span");
+    group.className = "filter-group-chip";
+
+    const name = document.createElement("span");
+    name.className = "filter-group-name";
+    name.textContent = label;
+    group.appendChild(name);
+
+    [...filtersState[key]].forEach((value, valueIndex) => {
+      if (valueIndex > 0) group.appendChild(makeFilterJoiner("or"));
+
       const chip = document.createElement("span");
       chip.className = "filter-chip";
 
@@ -1427,7 +1546,7 @@ function updateFilterSummary() {
 
       const text = document.createElement("span");
       text.className = "filter-chip-label";
-      text.textContent = `${label}: ${value}`;
+      text.textContent = value;
       text.title = `${label}: ${value}`;
       chip.appendChild(text);
 
@@ -1439,9 +1558,21 @@ function updateFilterSummary() {
       remove.addEventListener("click", () => removeFilterValue(key, value));
       chip.appendChild(remove);
 
-      filterSummary.appendChild(chip);
+      group.appendChild(chip);
     });
+
+    filterSummary.appendChild(group);
   });
+}
+
+function makeFilterJoiner(word) {
+  const joiner = document.createElement("span");
+  joiner.className = `filter-joiner filter-joiner-${word}`;
+  joiner.textContent = word;
+  joiner.title = word === "and"
+    ? "Events must match both filters"
+    : "Events matching either value are shown";
+  return joiner;
 }
 
 function closeAllFilterPopups() {
@@ -1620,16 +1751,6 @@ function setupFilterUI() {
   }
 
   // RESET
-  document.querySelectorAll(".filter-dd-x").forEach(btn=>{
-    btn.onclick=()=>{
-      filtersState[btn.dataset.filterKey].clear();
-      updateFilterSummary();
-      updateAllFilterFieldUi();
-      refreshAllFilterLists();
-      render();
-    };
-  });
-
   if(resetFiltersBtn){
 
     resetFiltersBtn.onclick=()=>{

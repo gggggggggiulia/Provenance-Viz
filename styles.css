@@ -680,46 +680,11 @@ body {
   text-overflow:ellipsis;
 }
 
-/* "+2" after the first selected value */
 .filter-dd-count{
   display:none;
   color:var(--tb-accent-text);
   font-size:11.5px;
   font-weight:600;
-}
-
-.filter-dd{
-  display:inline-flex;
-}
-
-.filter-dd-btn.is-active:has(+ .filter-dd-x:not([hidden])){
-  border-top-right-radius:0;
-  border-bottom-right-radius:0;
-}
-
-.filter-dd-x{
-  height:28px;
-  width:24px;
-  padding:0 4px 0 0;
-  border:1px solid var(--tb-accent);
-  border-left:none;
-  border-radius:0 8px 8px 0;
-  background:var(--tb-accent-soft);
-  color:var(--tb-accent-text);
-  font:inherit;
-  font-size:14px;
-  line-height:1;
-  cursor:pointer;
-}
-
-.filter-dd-x:hover{
-  background:rgba(182,164,111,0.32);
-  color:var(--text);
-}
-
-.filter-dd-x:focus-visible{
-  outline:2px solid var(--tb-accent);
-  outline-offset:1px;
 }
 
 .filter-dd-count.active{
@@ -1403,9 +1368,115 @@ svg {
 /* Clear all is a secondary action: neutral, not accent */
 #reset-filters{
   color:var(--muted);
-  margin-left:2px;
+  margin-left:4px;
+}
+
+/* Active filters on their own line under the dropdowns */
+.filter-chips-row{
+  flex-basis:100%;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+  padding-top:2px;
+}
+
+.filter-chip{
+  background:#fff;
+  border:1px solid var(--tb-line);
 }
 
 #reset-filters:hover{
   color:var(--text);
+}
+
+
+/* Active filters read as a sentence: one pill per group, "or" inside, "and" between */
+.filter-group-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  height:28px;
+  padding:0 3px 0 10px;
+  border:1px solid var(--tb-line);
+  border-radius:999px;
+  background:#fff;
+  font-size:12px;
+  white-space:nowrap;
+}
+
+.filter-group-name{
+  color:var(--muted);
+  margin-right:2px;
+}
+
+.filter-group-chip .filter-chip{
+  height:22px;
+  padding:0 2px 0 8px;
+  border:none;
+  background:rgba(15,23,42,0.05);
+}
+
+.filter-joiner{
+  font-size:11.5px;
+  color:var(--muted);
+  cursor:help;
+}
+
+.filter-joiner-and{
+  padding:0 2px;
+}
+
+.filter-dd-note{
+  display:grid;
+  grid-template-columns:auto 1fr;
+  gap:3px 10px;
+  margin:8px 2px 0;
+  padding-top:8px;
+  border-top:1px solid var(--tb-line);
+  font-size:11.5px;
+  line-height:1.35;
+  color:var(--muted);
+}
+
+.filter-dd-note dt{
+  color:var(--text);
+  font-weight:500;
+}
+
+.filter-dd-note dd{
+  margin:0;
+}
+
+.filter-dd-note b{
+  color:var(--text);
+  font-weight:600;
+}
+
+/* Filter result count, leading the active filters line */
+.filter-results-lead{
+  font-size:12.5px;
+  color:var(--muted);
+  white-space:nowrap;
+  margin-right:4px;
+}
+
+.filter-results-lead b{
+  color:var(--text);
+  font-weight:600;
+}
+
+/* Values are listed in the chips row, so the dropdowns only mark that a filter is on */
+.filter-dd-count.active{
+  display:none;
+}
+
+/* Values that would give no results with the other filters */
+.filter-option.is-unavailable{
+  opacity:0.38;
+  cursor:default;
+}
+
+.filter-option.is-unavailable:hover{
+  background:none;
 }

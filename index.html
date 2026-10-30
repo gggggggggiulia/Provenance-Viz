@@ -139,7 +139,6 @@
               <span class="filter-dd-count" id="count-category">0</span>
               <span class="filter-dd-chevron" aria-hidden="true"></span>
             </button>
-            <button class="filter-dd-x" type="button" data-filter-key="category" aria-label="Remove category filter" hidden>×</button>
             <div id="filter-dd-category" class="toolbar-popover filter-dd-popover" hidden>
               <div class="filter-combobox">
                 <input class="filter-search" id="search-category" type="text" placeholder="Search category…" autocomplete="off" />
@@ -148,6 +147,7 @@
                   <div class="filter-list" id="list-category"></div>
                 </div>
               </div>
+                <dl class="filter-dd-note"><dt>Several values</dt><dd>events with <b>any</b> of them</dd><dt>Several filters</dt><dd>events with <b>all</b> of them</dd></dl>
             </div>
           </div>
           <div class="toolbar-popover-anchor filter-dd" data-filter-key="institution">
@@ -156,7 +156,6 @@
               <span class="filter-dd-count" id="count-institution">0</span>
               <span class="filter-dd-chevron" aria-hidden="true"></span>
             </button>
-            <button class="filter-dd-x" type="button" data-filter-key="institution" aria-label="Remove institution filter" hidden>×</button>
             <div id="filter-dd-institution" class="toolbar-popover filter-dd-popover" hidden>
               <div class="filter-combobox">
                 <input class="filter-search" id="search-institution" type="text" placeholder="Search institution…" autocomplete="off" />
@@ -165,6 +164,7 @@
                   <div class="filter-list" id="list-institution"></div>
                 </div>
               </div>
+                <dl class="filter-dd-note"><dt>Several values</dt><dd>events with <b>any</b> of them</dd><dt>Several filters</dt><dd>events with <b>all</b> of them</dd></dl>
             </div>
           </div>
           <div class="toolbar-popover-anchor filter-dd" data-filter-key="edo">
@@ -173,7 +173,6 @@
               <span class="filter-dd-count" id="count-edo">0</span>
               <span class="filter-dd-chevron" aria-hidden="true"></span>
             </button>
-            <button class="filter-dd-x" type="button" data-filter-key="edo" aria-label="Remove edo filter" hidden>×</button>
             <div id="filter-dd-edo" class="toolbar-popover filter-dd-popover" hidden>
               <div class="filter-combobox">
                 <input class="filter-search" id="search-edo" type="text" placeholder="Search edo designation…" autocomplete="off" />
@@ -182,6 +181,7 @@
                   <div class="filter-list" id="list-edo"></div>
                 </div>
               </div>
+                <dl class="filter-dd-note"><dt>Several values</dt><dd>events with <b>any</b> of them</dd><dt>Several filters</dt><dd>events with <b>all</b> of them</dd></dl>
             </div>
           </div>
           <div class="toolbar-popover-anchor filter-dd" data-filter-key="actor">
@@ -190,7 +190,6 @@
               <span class="filter-dd-count" id="count-actor">0</span>
               <span class="filter-dd-chevron" aria-hidden="true"></span>
             </button>
-            <button class="filter-dd-x" type="button" data-filter-key="actor" aria-label="Remove actor filter" hidden>×</button>
             <div id="filter-dd-actor" class="toolbar-popover filter-dd-popover" hidden>
               <div class="filter-combobox">
                 <input class="filter-search" id="search-actor" type="text" placeholder="Search actor…" autocomplete="off" />
@@ -199,6 +198,7 @@
                   <div class="filter-list" id="list-actor"></div>
                 </div>
               </div>
+                <dl class="filter-dd-note"><dt>Several values</dt><dd>events with <b>any</b> of them</dd><dt>Several filters</dt><dd>events with <b>all</b> of them</dd></dl>
             </div>
           </div>
           <div class="toolbar-popover-anchor filter-dd" data-filter-key="cityStart">
@@ -207,7 +207,6 @@
               <span class="filter-dd-count" id="count-cityStart">0</span>
               <span class="filter-dd-chevron" aria-hidden="true"></span>
             </button>
-            <button class="filter-dd-x" type="button" data-filter-key="cityStart" aria-label="Remove cityStart filter" hidden>×</button>
             <div id="filter-dd-cityStart" class="toolbar-popover filter-dd-popover" hidden>
               <div class="filter-combobox">
                 <input class="filter-search" id="search-city-start" type="text" placeholder="Search start city…" autocomplete="off" />
@@ -216,6 +215,7 @@
                   <div class="filter-list" id="list-city-start"></div>
                 </div>
               </div>
+                <dl class="filter-dd-note"><dt>Several values</dt><dd>events with <b>any</b> of them</dd><dt>Several filters</dt><dd>events with <b>all</b> of them</dd></dl>
             </div>
           </div>
           <div class="toolbar-popover-anchor filter-dd" data-filter-key="cityEnd">
@@ -224,7 +224,6 @@
               <span class="filter-dd-count" id="count-cityEnd">0</span>
               <span class="filter-dd-chevron" aria-hidden="true"></span>
             </button>
-            <button class="filter-dd-x" type="button" data-filter-key="cityEnd" aria-label="Remove cityEnd filter" hidden>×</button>
             <div id="filter-dd-cityEnd" class="toolbar-popover filter-dd-popover" hidden>
               <div class="filter-combobox">
                 <input class="filter-search" id="search-city-end" type="text" placeholder="Search end city…" autocomplete="off" />
@@ -233,16 +232,22 @@
                   <div class="filter-list" id="list-city-end"></div>
                 </div>
               </div>
+                <dl class="filter-dd-note"><dt>Several values</dt><dd>events with <b>any</b> of them</dd><dt>Several filters</dt><dd>events with <b>all</b> of them</dd></dl>
             </div>
           </div>
         </div>
 
-        <button id="reset-filters" class="toolbar-link" type="button" hidden>Clear all</button>
         <div class="toolbar-spacer"></div>
         <span class="toolbar-label" id="filter-mode-label">Other events</span>
         <div class="toolbar-segmented" role="radiogroup" aria-labelledby="filter-mode-label">
           <button type="button" role="radio" data-mode="regular" title="Show non-matching events faded">Show faded</button>
           <button type="button" role="radio" data-mode="focus" title="Hide events that don't match">Hide</button>
+        </div>
+
+        <div id="filter-chips-row" class="filter-chips-row" hidden>
+          <span id="filter-results-lead" class="filter-results-lead"></span>
+          <div id="filter-summary" class="filter-summary"></div>
+          <button id="reset-filters" class="toolbar-link" type="button">Clear all</button>
         </div>
       </div>
     </div>

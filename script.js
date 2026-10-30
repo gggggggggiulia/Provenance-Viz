@@ -255,7 +255,6 @@ const SELECTION_BOX_RADIUS = 5;
 const SELECTION_BOX_PAD_X = 6;
 const SELECTION_BOX_PAD_Y = 6;
 
-const unmatchedCollapsedEventHeight = 5;
 const labelGap = 12;
 // Length of the dotted tail drawn for an open start or end
 const OPEN_END_LINE_LENGTH = 40;
@@ -296,7 +295,7 @@ const filterOptions = {
 };
 
 const filtersState = {
-  mode: "focus",
+  mode: "regular",          // "regular" (non-matching events faded) | "focus" (hidden)
   category: new Set(),
   institution: new Set(),
   edo: new Set(),
@@ -528,22 +527,9 @@ function scaledMatchedRowHeight() {
   return scaledEventHeight() + fixedGap;
 }
 
-function rowHeightForScaleY(scaleY, matched) {
-  const scaledH = eventHeight * scaleY;
+function rowHeightForScaleY(scaleY) {
   const fixedGap = rowHeight - eventHeight;
-
-  if (filtersState.mode === "collapsed" && !matched) {
-    return unmatchedCollapsedEventHeight + fixedGap;
-  }
-
-  return scaledH + fixedGap;
-}
-
-function eventHeightForScaleY(scaleY, matched) {
-  if (filtersState.mode === "collapsed" && !matched) {
-    return unmatchedCollapsedEventHeight;
-  }
-  return eventHeight * scaleY;
+  return eventHeight * scaleY + fixedGap;
 }
 
 function contentHeightForScaleY(scaleY) {
@@ -565,7 +551,7 @@ function contentHeightForScaleY(scaleY) {
       cursorY += objectGapExtra / 2;
     }
 
-    cursorY += rowHeightForScaleY(scaleY, matched);
+    cursorY += rowHeightForScaleY(scaleY);
 
     if (isGroupEnd) {
       cursorY += objectGapExtra / 2;
@@ -1623,7 +1609,7 @@ function setupFilterUI() {
         filtersState[key].clear();
       });
 
-      filtersState.mode="focus";
+      filtersState.mode="regular";
 
       updateFilterSummary();
       updateAllFilterFieldUi();
@@ -1874,10 +1860,6 @@ function updateFiltersResultsSummary() {
 function currentVisibleRows() {
   const matchedRowHeight = scaledMatchedRowHeight();
   const overviewExtraGap = getOverviewExtraGap();
-  const unmatchedRowHeight =
-    filtersState.mode === "collapsed"
-      ? unmatchedCollapsedEventHeight + (rowHeight - eventHeight)
-      : matchedRowHeight;
 
   const rows = [];
   let cursorY = axisHeight;
@@ -1916,15 +1898,8 @@ function currentVisibleRows() {
       cursorY += objectGapHalf;
     }
 
-    const visibleEventHeight =
-      filtersState.mode === "collapsed" && !matched
-        ? unmatchedCollapsedEventHeight
-        : scaledEventHeight();
-
-    const rowH =
-      filtersState.mode === "collapsed" && !matched
-        ? unmatchedRowHeight
-        : matchedRowHeight;
+    const visibleEventHeight = scaledEventHeight();
+    const rowH = matchedRowHeight;
 
     rows.push({
       event,

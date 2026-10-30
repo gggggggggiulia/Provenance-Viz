@@ -27,6 +27,7 @@ body {
 .app {
   height: 100vh;
   display: grid;
+  grid-template-columns: minmax(0, 1fr); /* keeps the toolbar within the window */
   grid-template-rows: auto 1fr;
   background: #ffffff;
 }
@@ -61,8 +62,14 @@ body {
   display:flex;
   align-items:center;
   gap:8px;
-  flex-wrap:wrap;
+  flex-wrap:nowrap;
   min-height:36px;
+}
+
+/* Everything keeps its size on one line; only the breadcrumb, the search
+   and the year field give way when space runs out */
+.toolbar-main > *{
+  flex-shrink:0;
 }
 
 .toolbar-spacer{
@@ -103,11 +110,16 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.toolbar-main > .toolbar-crumb{
+  flex:0 1 auto;
+}
+
 .toolbar-crumb{
   display:flex;
   align-items:baseline;
   gap:8px;
   min-width:0;
+  overflow:hidden;
   margin-right:6px;
   font-size:14px;
   white-space:nowrap;
@@ -135,6 +147,7 @@ body {
 }
 
 .toolbar-crumb-meta{
+  min-width:0;
   font-size:12px;
   color:var(--muted);
   overflow:hidden;
@@ -274,6 +287,10 @@ body {
   border-radius:4px;
   color:var(--muted);
   background:#fff;
+}
+
+.toolbar-main > .toolbar-search{
+  flex:0 1 280px;
 }
 
 .toolbar-search{

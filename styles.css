@@ -657,28 +657,69 @@ body {
   background:var(--tb-soft);
 }
 
+/* Gold means only "this filter is applied"; opening a dropdown stays neutral */
 .filter-dd-btn[aria-expanded="true"]{
-  border-color:var(--tb-accent);
+  border-color:var(--tb-line-strong);
+  background:var(--tb-soft);
 }
 
 .filter-dd-btn.is-active{
   border-color:var(--tb-accent);
   background:var(--tb-accent-soft);
-  color:var(--tb-accent-text);
+  color:var(--text);
+  font-weight:500;
 }
 
+.filter-dd-btn.is-active:hover{
+  background:rgba(182,164,111,0.24);
+}
+
+.filter-dd-label{
+  max-width:180px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+/* "+2" after the first selected value */
 .filter-dd-count{
   display:none;
-  min-width:16px;
-  height:16px;
-  padding:0 4px;
-  border-radius:999px;
-  background:var(--tb-accent);
-  color:#fff;
-  font-size:10.5px;
+  color:var(--tb-accent-text);
+  font-size:11.5px;
   font-weight:600;
-  align-items:center;
-  justify-content:center;
+}
+
+.filter-dd{
+  display:inline-flex;
+}
+
+.filter-dd-btn.is-active:has(+ .filter-dd-x:not([hidden])){
+  border-top-right-radius:0;
+  border-bottom-right-radius:0;
+}
+
+.filter-dd-x{
+  height:28px;
+  width:24px;
+  padding:0 4px 0 0;
+  border:1px solid var(--tb-accent);
+  border-left:none;
+  border-radius:0 8px 8px 0;
+  background:var(--tb-accent-soft);
+  color:var(--tb-accent-text);
+  font:inherit;
+  font-size:14px;
+  line-height:1;
+  cursor:pointer;
+}
+
+.filter-dd-x:hover{
+  background:rgba(182,164,111,0.32);
+  color:var(--text);
+}
+
+.filter-dd-x:focus-visible{
+  outline:2px solid var(--tb-accent);
+  outline-offset:1px;
 }
 
 .filter-dd-count.active{
@@ -833,7 +874,7 @@ body {
 }
 
 .toolbar-segmented button[aria-checked="true"]{
-  background:var(--tb-accent-soft);
+  background:rgba(15,23,42,0.07);
   color:var(--text);
   font-weight:600;
 }
@@ -1357,4 +1398,14 @@ svg {
   .toolbar-crumb-meta {
     display: none;
   }
+}
+
+/* Clear all is a secondary action: neutral, not accent */
+#reset-filters{
+  color:var(--muted);
+  margin-left:2px;
+}
+
+#reset-filters:hover{
+  color:var(--text);
 }

@@ -135,10 +135,11 @@
         <div class="filter-dd-group" role="group" aria-label="Filter events by">
           <div class="toolbar-popover-anchor filter-dd" data-filter-key="category">
             <button id="filter-dd-btn-category" class="filter-dd-btn" type="button" aria-expanded="false" aria-controls="filter-dd-category">
-              <span>Category</span>
+              <span class="filter-dd-label" data-label="Category">Category</span>
               <span class="filter-dd-count" id="count-category">0</span>
               <span class="filter-dd-chevron" aria-hidden="true"></span>
             </button>
+            <button class="filter-dd-x" type="button" data-filter-key="category" aria-label="Remove category filter" hidden>×</button>
             <div id="filter-dd-category" class="toolbar-popover filter-dd-popover" hidden>
               <div class="filter-combobox">
                 <input class="filter-search" id="search-category" type="text" placeholder="Search category…" autocomplete="off" />
@@ -151,10 +152,11 @@
           </div>
           <div class="toolbar-popover-anchor filter-dd" data-filter-key="institution">
             <button id="filter-dd-btn-institution" class="filter-dd-btn" type="button" aria-expanded="false" aria-controls="filter-dd-institution">
-              <span>Institution</span>
+              <span class="filter-dd-label" data-label="Institution">Institution</span>
               <span class="filter-dd-count" id="count-institution">0</span>
               <span class="filter-dd-chevron" aria-hidden="true"></span>
             </button>
+            <button class="filter-dd-x" type="button" data-filter-key="institution" aria-label="Remove institution filter" hidden>×</button>
             <div id="filter-dd-institution" class="toolbar-popover filter-dd-popover" hidden>
               <div class="filter-combobox">
                 <input class="filter-search" id="search-institution" type="text" placeholder="Search institution…" autocomplete="off" />
@@ -167,10 +169,11 @@
           </div>
           <div class="toolbar-popover-anchor filter-dd" data-filter-key="edo">
             <button id="filter-dd-btn-edo" class="filter-dd-btn" type="button" aria-expanded="false" aria-controls="filter-dd-edo">
-              <span>EDO designation</span>
+              <span class="filter-dd-label" data-label="EDO designation">EDO designation</span>
               <span class="filter-dd-count" id="count-edo">0</span>
               <span class="filter-dd-chevron" aria-hidden="true"></span>
             </button>
+            <button class="filter-dd-x" type="button" data-filter-key="edo" aria-label="Remove edo filter" hidden>×</button>
             <div id="filter-dd-edo" class="toolbar-popover filter-dd-popover" hidden>
               <div class="filter-combobox">
                 <input class="filter-search" id="search-edo" type="text" placeholder="Search edo designation…" autocomplete="off" />
@@ -183,10 +186,11 @@
           </div>
           <div class="toolbar-popover-anchor filter-dd" data-filter-key="actor">
             <button id="filter-dd-btn-actor" class="filter-dd-btn" type="button" aria-expanded="false" aria-controls="filter-dd-actor">
-              <span>Actor</span>
+              <span class="filter-dd-label" data-label="Actor">Actor</span>
               <span class="filter-dd-count" id="count-actor">0</span>
               <span class="filter-dd-chevron" aria-hidden="true"></span>
             </button>
+            <button class="filter-dd-x" type="button" data-filter-key="actor" aria-label="Remove actor filter" hidden>×</button>
             <div id="filter-dd-actor" class="toolbar-popover filter-dd-popover" hidden>
               <div class="filter-combobox">
                 <input class="filter-search" id="search-actor" type="text" placeholder="Search actor…" autocomplete="off" />
@@ -199,10 +203,11 @@
           </div>
           <div class="toolbar-popover-anchor filter-dd" data-filter-key="cityStart">
             <button id="filter-dd-btn-cityStart" class="filter-dd-btn" type="button" aria-expanded="false" aria-controls="filter-dd-cityStart">
-              <span>Start city</span>
+              <span class="filter-dd-label" data-label="Start city">Start city</span>
               <span class="filter-dd-count" id="count-cityStart">0</span>
               <span class="filter-dd-chevron" aria-hidden="true"></span>
             </button>
+            <button class="filter-dd-x" type="button" data-filter-key="cityStart" aria-label="Remove cityStart filter" hidden>×</button>
             <div id="filter-dd-cityStart" class="toolbar-popover filter-dd-popover" hidden>
               <div class="filter-combobox">
                 <input class="filter-search" id="search-city-start" type="text" placeholder="Search start city…" autocomplete="off" />
@@ -215,10 +220,11 @@
           </div>
           <div class="toolbar-popover-anchor filter-dd" data-filter-key="cityEnd">
             <button id="filter-dd-btn-cityEnd" class="filter-dd-btn" type="button" aria-expanded="false" aria-controls="filter-dd-cityEnd">
-              <span>End city</span>
+              <span class="filter-dd-label" data-label="End city">End city</span>
               <span class="filter-dd-count" id="count-cityEnd">0</span>
               <span class="filter-dd-chevron" aria-hidden="true"></span>
             </button>
+            <button class="filter-dd-x" type="button" data-filter-key="cityEnd" aria-label="Remove cityEnd filter" hidden>×</button>
             <div id="filter-dd-cityEnd" class="toolbar-popover filter-dd-popover" hidden>
               <div class="filter-combobox">
                 <input class="filter-search" id="search-city-end" type="text" placeholder="Search end city…" autocomplete="off" />
@@ -231,10 +237,7 @@
           </div>
         </div>
 
-        <span class="toolbar-sep" aria-hidden="true"></span>
-
-        <div id="filter-summary" class="filter-summary"></div>
-        <button id="reset-filters" class="toolbar-link" type="button">Clear all</button>
+        <button id="reset-filters" class="toolbar-link" type="button" hidden>Clear all</button>
         <div class="toolbar-spacer"></div>
         <span class="toolbar-label" id="filter-mode-label">Other events</span>
         <div class="toolbar-segmented" role="radiogroup" aria-labelledby="filter-mode-label">

@@ -355,7 +355,24 @@ function updateFilterFieldUi(key){
 
   }
 
-  count?.closest(".filter-dd-btn")?.classList.toggle("is-active", selectedCount>0);
+  const ddBtn=count?.closest(".filter-dd-btn");
+  ddBtn?.classList.toggle("is-active", selectedCount>0);
+
+  // The dropdown itself shows what is selected, so no separate chip row is needed
+  const label=ddBtn?.querySelector(".filter-dd-label");
+  if(label){
+    const name=label.dataset.label;
+    const values=[...filtersState[key]];
+    label.textContent=values.length ? `${name}: ${values[0]}` : name;
+    label.title=values.length ? `${name}: ${values.join(", ")}` : "";
+    if(count){
+      count.textContent=`+${selectedCount-1}`;
+      count.classList.toggle("active", selectedCount>1);
+    }
+  }
+
+  const ddX=ddBtn?.parentElement.querySelector(".filter-dd-x");
+  if(ddX) ddX.hidden=selectedCount===0;
 
   if(clear){
     if(selectedCount>0){
@@ -1390,6 +1407,8 @@ function updateFilterSummary() {
   updateFilterModeButtons();
   updateObjectDetailToolbar();
 
+  if (resetFiltersBtn) resetFiltersBtn.hidden = total === 0;
+
   if (!filterSummary) return;
 
   filterSummary.innerHTML = "";
@@ -1601,6 +1620,16 @@ function setupFilterUI() {
   }
 
   // RESET
+  document.querySelectorAll(".filter-dd-x").forEach(btn=>{
+    btn.onclick=()=>{
+      filtersState[btn.dataset.filterKey].clear();
+      updateFilterSummary();
+      updateAllFilterFieldUi();
+      refreshAllFilterLists();
+      render();
+    };
+  });
+
   if(resetFiltersBtn){
 
     resetFiltersBtn.onclick=()=>{

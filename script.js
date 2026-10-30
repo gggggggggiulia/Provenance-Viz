@@ -770,9 +770,7 @@ function resetView() {
   state.scrollY = 0;
 
   storedDetailEventScaleY = 1;
-  state.eventScaleY = isOverviewZoomLevel()
-    ? OVERVIEW_FIXED_EVENT_SCALE_Y
-    : storedDetailEventScaleY;
+  state.eventScaleY = eventScaleYForZoom();
 
   clampOffsetX();
   clampScrollY(resizeOverscrollMargin());
@@ -842,19 +840,20 @@ function zoomByStep(direction) {
 // Row height: steps through the allowed event heights, anchored on the viewport centre
 const ROW_HEIGHT_STEP_SCALE_Y = 5 / eventHeight;
 
+// Sets the chosen row height; while rows are still growing the drawn height follows it
 function setRowScaleY(nextScaleY, pointerOffsetY = (height - axisHeight) / 2) {
   if (isOverviewZoomLevel()) return;
 
   const anchorRatio = verticalAnchorRatio(state.scrollY, pointerOffsetY, state.eventScaleY);
-  state.eventScaleY = clamp(nextScaleY, minEventScaleY, maxEventScaleY);
-  storedDetailEventScaleY = state.eventScaleY;
+  storedDetailEventScaleY = clamp(nextScaleY, minEventScaleY, maxEventScaleY);
+  state.eventScaleY = eventScaleYForZoom();
   state.scrollY = scrollYFromAnchorRatio(anchorRatio, pointerOffsetY, state.eventScaleY);
   clampScrollY(resizeOverscrollMargin());
   render();
 }
 
 function rowHeightByStep(direction) {
-  setRowScaleY(state.eventScaleY + direction * ROW_HEIGHT_STEP_SCALE_Y);
+  setRowScaleY(storedDetailEventScaleY + direction * ROW_HEIGHT_STEP_SCALE_Y);
 }
 
 function panByViewport(fraction) {
@@ -889,11 +888,11 @@ function updateZoomControls() {
   const overview = isOverviewZoomLevel();
   const overviewHint = "Row height is fixed in Overview: zoom in to change it";
   if (rowsShorterBtn) {
-    rowsShorterBtn.disabled = overview || state.eventScaleY <= minEventScaleY + 1e-6;
+    rowsShorterBtn.disabled = overview || storedDetailEventScaleY <= minEventScaleY + 1e-6;
     rowsShorterBtn.title = overview ? overviewHint : "Shorter rows (Alt + scroll)";
   }
   if (rowsTallerBtn) {
-    rowsTallerBtn.disabled = overview || state.eventScaleY >= maxEventScaleY - 1e-6;
+    rowsTallerBtn.disabled = overview || storedDetailEventScaleY >= maxEventScaleY - 1e-6;
     rowsTallerBtn.title = overview ? overviewHint : "Taller rows (Alt + scroll)";
   }
 }
@@ -2188,10 +2187,29 @@ function getOverviewExtraGap() {
   return fullOverviewGap * (1 - t);
 }
 
+// Past the Overview threshold rows grow gradually up to the chosen height,
+// instead of jumping from the Overview height in one zoom step
+const ROW_GROWTH_START_PX_PER_YEAR = 1.5;
+const ROW_GROWTH_END_PX_PER_YEAR = 3;
+
+function eventScaleYForZoom() {
+  if (isOverviewZoomLevel()) return OVERVIEW_FIXED_EVENT_SCALE_Y;
+
+  const pxPerYear = Math.abs((baseScale(1) - baseScale(0)) * state.scale);
+  const t = clamp(
+    (pxPerYear - ROW_GROWTH_START_PX_PER_YEAR) /
+      (ROW_GROWTH_END_PX_PER_YEAR - ROW_GROWTH_START_PX_PER_YEAR),
+    0,
+    1
+  );
+  const eased = t * t * (3 - 2 * t);
+
+  return OVERVIEW_FIXED_EVENT_SCALE_Y +
+    (storedDetailEventScaleY - OVERVIEW_FIXED_EVENT_SCALE_Y) * eased;
+}
+
 function syncEventHeightForSemanticZoom(pointerClientY = null) {
-  const targetScaleY = isOverviewZoomLevel()
-    ? OVERVIEW_FIXED_EVENT_SCALE_Y
-    : storedDetailEventScaleY;
+  const targetScaleY = eventScaleYForZoom();
 
   if (state.eventScaleY === targetScaleY) return;
 
@@ -2208,12 +2226,7 @@ function syncEventHeightForSemanticZoom(pointerClientY = null) {
     state.eventScaleY
   );
 
-  if (isOverviewZoomLevel()) {
-    storedDetailEventScaleY = state.eventScaleY;
-    state.eventScaleY = OVERVIEW_FIXED_EVENT_SCALE_Y;
-  } else {
-    state.eventScaleY = storedDetailEventScaleY;
-  }
+  state.eventScaleY = targetScaleY;
 
   state.scrollY = scrollYFromAnchorRatio(
     anchorRatio,
@@ -3244,7 +3257,7 @@ svg.on("wheel", (event) => {
   if (event.altKey) {
     const [, pointerY] = d3.pointer(event, svg.node());
     const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
-    setRowScaleY(state.eventScaleY - delta * 0.003, pointerY - axisHeight);
+    setRowScaleY(storedDetailEventScaleY - delta * 0.003, pointerY - axisHeight);
     return;
   }
 
@@ -3299,32 +3312,9 @@ svg.on("pointermove", (event) => {
     }
 
     const [, currentPointerY] = d3.pointer(event, svg.node());
-    const pointerOffsetY = currentPointerY - axisHeight;
-
-    const anchorRatio = verticalAnchorRatio(
-      state.scrollY,
-      pointerOffsetY,
-      state.eventScaleY
-    );
-
-    state.eventScaleY = clamp(
-      state.eventScaleY - dy * 0.008,
-      minEventScaleY,
-      maxEventScaleY
-    );
-
-    storedDetailEventScaleY = state.eventScaleY;
-
-    state.scrollY = scrollYFromAnchorRatio(
-      anchorRatio,
-      pointerOffsetY,
-      state.eventScaleY
-    );
+    setRowScaleY(storedDetailEventScaleY - dy * 0.008, currentPointerY - axisHeight);
 
     dragState.startY = event.clientY;
-
-    clampScrollY(resizeOverscrollMargin());
-    render();
     return;
   }
 

@@ -590,6 +590,30 @@ function buildSection(kind, startRaw, endRaw, opacity, pattern, uncertaintyCode 
   };
 }
 
+// An uncertain start or end range can reach past the other end of the event
+// (e.g. "19XX/1969": the start range 1900–2000 runs past 1969). Clip the
+// ranges to each other and drop the middle section when nothing is left of it,
+// otherwise it is drawn backwards as a thin stray bar.
+function normalizeEventSections(sections) {
+  if (sections.length !== 3) return sections;
+
+  const [startSection, midSection, endSection] = sections;
+
+  if (startSection.end > endSection.start) {
+    startSection.end = Math.max(startSection.start, endSection.start);
+  }
+  if (endSection.start < startSection.end) {
+    endSection.start = Math.min(endSection.end, startSection.end);
+  }
+
+  midSection.start = startSection.end;
+  midSection.end = Math.max(midSection.end, midSection.start);
+
+  return midSection.end - midSection.start > 1e-6
+    ? sections
+    : [startSection, endSection];
+}
+
 function buildFilterOptions(rows) {
   const categoryOrder = [
     // red
@@ -2734,6 +2758,7 @@ async function loadCSV() {
           buildSection("mid", mid1Raw, mid2Raw, OPACITY.structureMid, patternFromCode(e.uncertainty_mid), e.uncertainty_mid || ""),
           buildSection("end", mid2Raw, endRaw, OPACITY.structureEnd, patternFromCode(e.uncertainty_end), e.uncertainty_end || "")
         ];
+        sections = normalizeEventSections(sections);
       }
 
       return {

@@ -897,7 +897,7 @@ function updateZoomControls() {
   }
 }
 
-// Fit the timeline to the events currently on screen (or the open object)
+// Fit the years to the events currently shown (or the open object)
 function fitView() {
   const events =
     state.viewMode === "objectDetail" && state.detailObjectId !== null
@@ -907,8 +907,7 @@ function fitView() {
   const start = d3.min(events, event => event.eventStart);
   const end = d3.max(events, event => event.eventEnd);
 
-  state.scrollY = 0;
-
+  // Only the years are fitted: the list keeps its place
   if (start == null || end == null) {
     resetView();
     return;

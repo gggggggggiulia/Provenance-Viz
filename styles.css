@@ -43,6 +43,7 @@ body {
   --tb-accent-text: #7d6c3c; /* darker gold so links stay readable on white */
   --tb-accent-soft: rgba(182, 164, 111, 0.16);
   --tb-error: #b42318;
+  --tb-placeholder: #9ca3af; /* lighter than --muted so empty fields read as fillable */
 
   display:flex;
   flex-direction:column;
@@ -247,8 +248,9 @@ body {
   line-height:1;
 }
 
-.toolbar-input::placeholder{
-  color:var(--muted);
+.toolbar-input::placeholder,
+.filter-search::placeholder{
+  color:var(--tb-placeholder);
 }
 
 .toolbar-input:focus{

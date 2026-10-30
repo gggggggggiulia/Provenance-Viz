@@ -459,7 +459,9 @@ const state = {
 };
 
 let dragState = null;
-let storedDetailEventScaleY = 1;
+// Default row height outside Overview: 15 px events, 27 px between rows
+const DEFAULT_EVENT_SCALE_Y = 15 / eventHeight;
+let storedDetailEventScaleY = DEFAULT_EVENT_SCALE_Y;
 let scrollAnimationFrame = null;
 
 const tooltipEl = document.createElement("div");
@@ -793,7 +795,7 @@ function resetView() {
   state.offsetX = 0;
   state.scrollY = 0;
 
-  storedDetailEventScaleY = 1;
+  storedDetailEventScaleY = DEFAULT_EVENT_SCALE_Y;
   state.eventScaleY = eventScaleYForZoom();
 
   clampOffsetX();
@@ -2213,7 +2215,7 @@ function getOverviewExtraGap() {
 // Past the Overview threshold rows grow gradually up to the chosen height,
 // instead of jumping from the Overview height in one zoom step
 const ROW_GROWTH_START_PX_PER_YEAR = 1.5;
-const ROW_GROWTH_END_PX_PER_YEAR = 3;
+const ROW_GROWTH_END_PX_PER_YEAR = 2;
 
 function eventScaleYForZoom() {
   if (isOverviewZoomLevel()) return OVERVIEW_FIXED_EVENT_SCALE_Y;
@@ -2719,7 +2721,8 @@ function initializeFromData() {
     });
   });
 
-  render();
+  // The page opens on Fit view
+  fitView();
 }
 
 async function loadCSV() {
